@@ -1,0 +1,392 @@
+/* Responsive Design */
+
+/* Tablet Layout (768px - 1023px) */
+@media (max-width: 1023px) {
+  .main-container {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+
+  .video-panel {
+    grid-column: 1 / -1; /* Span full width */
+    grid-row: 1;
+    min-width: unset;
+  }
+
+  .chat-panel {
+    grid-row: 2;
+    grid-column: 1;
+    min-width: unset;
+  }
+
+  .betting-panel {
+    grid-row: 2;
+    grid-column: 2;
+    min-width: unset;
+  }
+  
+  .panel-header {
+    padding: var(--spacing-sm);
+    min-height: 50px;
+  }
+  
+  .panel-header h2 {
+    font-size: var(--font-size-base);
+  }
+  
+  .panel-content {
+    padding: var(--spacing-sm);
+  }
+  
+  .panel-footer {
+    padding: var(--spacing-sm);
+  }
+  
+  .app-header {
+    padding: 0 var(--spacing-md);
+  }
+  
+  .logo h1 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .battle-points {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .battle-points span:last-child {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Mobile Layout (up to 767px) */
+@media (max-width: 767px) {
+  :root {
+    --header-height: 120px; /* Taller header for mobile */
+  }
+  
+  .app-header {
+    flex-direction: column;
+    height: var(--header-height);
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+  
+  .app-header > div {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .logo {
+    justify-content: center;
+  }
+  
+  .profile {
+    justify-content: center;
+  }
+  
+  .main-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    height: calc(100vh - var(--header-height));
+  }
+  
+  .chat-panel {
+    order: 3;
+    min-width: unset;
+    max-width: unset;
+    max-height: 300px;
+  }
+  
+  .video-panel {
+    order: 1;
+    min-width: unset;
+  }
+  
+  .betting-panel {
+    order: 2;
+    min-width: unset;
+    max-width: unset;
+  }
+  
+  .panel-header {
+    padding: var(--spacing-sm);
+    min-height: 44px;
+  }
+  
+  .panel-header h2 {
+    font-size: var(--font-size-base);
+  }
+  
+  .panel-content {
+    padding: var(--spacing-sm);
+  }
+  
+  .panel-footer {
+    padding: var(--spacing-sm);
+  }
+  
+  /* Mobile Chat Adjustments */
+  .chat-input-container {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+  
+  .chat-input-container input {
+    margin-bottom: var(--spacing-xs);
+  }
+  
+  #sendChatBtn {
+    width: 100%;
+  }
+  
+  /* Mobile Betting Adjustments */
+  .fighters {
+    gap: var(--spacing-sm);
+  }
+  
+  .fighter {
+    padding: var(--spacing-sm);
+  }
+  
+  .fighter-name {
+    font-size: var(--font-size-sm);
+  }
+  
+  .fighter-odds {
+    font-size: var(--font-size-base);
+  }
+  
+  .bet-buttons {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+  
+  .bet-button {
+    padding: var(--spacing-sm);
+  }
+  
+  /* Mobile Video Adjustments */
+  .video-status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .live-indicator {
+    align-self: flex-start;
+  }
+  
+  .viewer-count {
+    align-self: flex-start;
+  }
+}
+
+/* Small Mobile (up to 480px) */
+@media (max-width: 480px) {
+  :root {
+    --spacing-md: 0.75rem;
+    --spacing-lg: 1rem;
+    --panel-min-width: 100%;
+  }
+  
+  .main-container {
+    padding: var(--spacing-xs);
+    gap: var(--spacing-xs);
+  }
+  
+  .app-header {
+    padding: var(--spacing-xs);
+  }
+  
+  .logo img {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .logo h1 {
+    font-size: var(--font-size-base);
+  }
+  
+  .battle-points {
+    padding: var(--spacing-xs);
+  }
+  
+  .battle-points span:last-child {
+    font-size: var(--font-size-sm);
+  }
+  
+  .panel {
+    border-radius: var(--radius-md);
+  }
+  
+  .panel-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 40px;
+  }
+  
+  .panel-header h2 {
+    font-size: var(--font-size-sm);
+  }
+  
+  .panel-content {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .panel-footer {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  /* Small Mobile Chat */
+  .chat-message {
+    padding: var(--spacing-xs);
+  }
+  
+  .chat-message-user {
+    font-size: var(--font-size-xs);
+  }
+  
+  .chat-message-content {
+    font-size: var(--font-size-xs);
+  }
+  
+  /* Small Mobile Betting */
+  .fighter {
+    padding: var(--spacing-xs);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .fighter-name {
+    font-size: var(--font-size-xs);
+  }
+  
+  .fighter-odds {
+    font-size: var(--font-size-sm);
+  }
+  
+  .betting-controls {
+    gap: var(--spacing-sm);
+  }
+  
+  .bet-button {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Landscape Mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+  :root {
+    --header-height: 60px;
+  }
+  
+  .app-header {
+    flex-direction: row;
+    height: var(--header-height);
+    justify-content: space-between;
+  }
+  
+  .app-header > div {
+    width: auto;
+  }
+  
+  .logo {
+    justify-content: flex-start;
+  }
+  
+  .profile {
+    justify-content: flex-end;
+  }
+  
+  .main-container {
+    grid-template-columns: 300px 1fr 300px;
+    grid-template-rows: 1fr;
+    height: calc(100vh - var(--header-height));
+  }
+  
+  .chat-panel {
+    order: 1;
+    max-height: unset;
+  }
+  
+  .video-panel {
+    order: 2;
+  }
+  
+  .betting-panel {
+    order: 3;
+  }
+}
+
+/* High DPI Displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .logo img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .live-dot,
+  .online-dot {
+    animation: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  :root {
+    --dark-border: #ffffff;
+    --dark-text: #ffffff;
+    --dark-text-secondary: #cccccc;
+    --accent-orange: #ffaa00;
+  }
+  
+  .panel {
+    border-width: 2px;
+  }
+  
+  button {
+    border-width: 2px;
+  }
+  
+  input {
+    border-width: 2px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .app-header,
+  .chat-panel,
+  .betting-panel {
+    display: none !important;
+  }
+  
+  .main-container {
+    grid-template-columns: 1fr;
+    padding: 0;
+    margin: 0;
+    height: auto;
+  }
+  
+  .video-panel {
+    border: none;
+    box-shadow: none;
+  }
+}

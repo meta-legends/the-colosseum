@@ -1,0 +1,285 @@
+/* Main Layout Styles */
+
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  line-height: 1.5;
+  font-weight: var(--font-weight-normal);
+  color: var(--dark-text);
+  background-color: var(--dark-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Header Styles */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  background-color: var(--dark-header);
+  border-bottom: 1px solid var(--dark-border);
+  padding: 0 var(--spacing-lg);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-fixed);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.logo img {
+  width: 32px;
+  height: 32px;
+}
+
+.logo h1 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--accent-orange);
+  margin: 0;
+}
+
+.battle-points {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background-color: var(--dark-panel);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--dark-border);
+}
+
+.battle-points span:first-child {
+  color: var(--dark-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.battle-points span:last-child {
+  color: var(--accent-orange);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+#userInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background-color: var(--dark-panel);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--dark-border);
+}
+
+#userAddress {
+  color: var(--dark-text);
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(45deg, var(--accent-orange), var(--brown));
+}
+
+/* Main Container */
+.main-container {
+  display: grid;
+  grid-template-columns: var(--panel-min-width) 1fr var(--panel-min-width);
+  gap: var(--spacing-md);
+  height: calc(100vh - var(--header-height));
+  margin-top: var(--header-height);
+  padding: var(--spacing-md);
+  overflow: hidden;
+}
+
+/* Panel Base Styles */
+.panel {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--dark-panel);
+  border: 1px solid var(--dark-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background-color: var(--dark-header);
+  border-bottom: 1px solid var(--dark-border);
+  min-height: 60px;
+}
+
+.panel-header h2 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--dark-text);
+  margin: 0;
+}
+
+.panel-content {
+  flex: 1;
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.panel-footer {
+  padding: var(--spacing-md);
+  background-color: var(--dark-header);
+  border-top: 1px solid var(--dark-border);
+}
+
+/* Chat Panel Specific */
+.chat-panel {
+  min-width: var(--panel-min-width);
+  max-width: var(--panel-max-width);
+}
+
+.online-count {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--dark-text-secondary);
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--success);
+  animation: pulse 2s infinite;
+}
+
+/* Video Panel Specific */
+.video-panel {
+  min-width: 0; /* Allow shrinking */
+}
+
+.video-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background-color: var(--error);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: white;
+  animation: pulse 1s infinite;
+}
+
+.viewer-count {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--dark-text-secondary);
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: calc(100% / var(--video-aspect-ratio));
+  background-color: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.video-container video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Betting Panel Specific */
+.betting-panel {
+  min-width: var(--panel-min-width);
+  max-width: var(--panel-max-width);
+}
+
+.betting-timer {
+  font-family: monospace;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--accent-orange);
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Scrollbar Styling */
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: var(--dark-header);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: var(--dark-border);
+  border-radius: var(--radius-sm);
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: var(--brown);
+}

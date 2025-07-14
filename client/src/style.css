@@ -1,0 +1,111 @@
+/* Main Stylesheet - Imports all CSS modules */
+
+/* Import CSS modules in order of specificity */
+@import './variables.css';
+@import './layout.css';
+@import './components.css';
+@import './responsive.css';
+
+/* Legacy styles that might still be needed */
+/* These can be removed once we confirm everything works */
+
+/* Video.js specific overrides */
+.video-js {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.video-js .vjs-big-play-button {
+  display: none !important;
+}
+
+.video-js .vjs-control-bar {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.video-js .vjs-control-bar .vjs-button {
+  color: var(--dark-text);
+}
+
+.video-js .vjs-control-bar .vjs-button:hover {
+  color: var(--accent-orange);
+}
+
+.video-js .vjs-progress-control .vjs-progress-holder {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.video-js .vjs-progress-control .vjs-play-progress {
+  background-color: var(--accent-orange);
+}
+
+.video-js .vjs-volume-panel .vjs-volume-control {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Custom scrollbar for webkit browsers */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dark-border) var(--dark-header);
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--accent-orange);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--accent-orange);
+  color: white;
+}
+
+::-moz-selection {
+  background-color: var(--accent-orange);
+  color: white;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default button styles */
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Remove default input styles */
+input, textarea {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+}
+
+/* Ensure images are responsive */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hide elements visually but keep them accessible to screen readers */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
