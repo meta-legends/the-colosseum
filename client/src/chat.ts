@@ -1,100 +1,164 @@
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:3001');
+import { supabase } from './supabase';
 
 interface ChatMessage {
-  user: { 
-    id: string;
-    address?: string;
-  };
+  id: string;
+  userId: string;
   message: string;
-  timestamp?: string;
-  messageType?: 'user' | 'system';
+  createdAt: string;
+  user: {
+    walletAddress: string;
+  };
 }
 
 let messageCount = 0;
 const MAX_MESSAGES = 100;
 
-export function initChat() {
-  const chatMessages = document.getElementById('chatMessages');
-  
-  if (!chatMessages) {
+export async function initChat() {
+  const chatMessagesContainer = document.getElementById('chatMessages');
+  if (!chatMessagesContainer) {
     console.error('Chat messages container not found');
     return;
   }
 
-  // Listen for new chat messages
-  socket.on('newChatMessage', (message: ChatMessage) => {
-    addMessageToChat(message);
-  });
+  // Fetch initial chat messages
+  await fetchInitialMessages();
 
-  // Listen for connection status
-  socket.on('connect', () => {
-    console.log('Connected to chat server');
-    addSystemMessage('Connected to chat');
-  });
+  // Listen for new messages in real-time
+  supabase
+    .channel('public:ChatMessage')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'ChatMessage' },
+      (payload) => {
+        // We need to fetch the user data for the new message
+        fetchMessageWithUser(payload.new.id);
+      }
+    )
+    .subscribe();
 
-  socket.on('disconnect', () => {
-    console.log('Disconnected from chat server');
-    addSystemMessage('Disconnected from chat');
-  });
-
-  // Add welcome message
   addSystemMessage('Welcome to The Colosseum! Chat with other spectators.');
 }
 
-export function sendMessage(userId: string, message: string) {
+async function fetchMessageWithUser(messageId: string) {
+    const { data, error } = await supabase
+        .from('ChatMessage')
+        .select(`
+            *,
+            user:User (
+                walletAddress
+            )
+        `)
+        .eq('id', messageId)
+        .single();
+
+    if (error) {
+        console.error('Error fetching new message with user:', error);
+        return;
+    }
+
+    if (data) {
+        // The 'user' property will be an object, not an array
+        const message: ChatMessage = {
+            id: data.id,
+            userId: data.userId,
+            message: data.message,
+            createdAt: data.createdAt,
+            user: data.user as { walletAddress: string }, // Type assertion
+        };
+        addMessageToChat(message);
+    }
+}
+
+
+export async function sendMessage(userId: string, message: string) {
   if (!message.trim()) return;
-  
-  // Basic message validation
+
   if (message.length > 200) {
     addSystemMessage('Message too long (max 200 characters)');
     return;
   }
 
-  // Emit message to server
-  socket.emit('chatMessage', { userId, message: message.trim() });
+  const { error } = await supabase
+    .from('ChatMessage')
+    .insert([{ userId, message }]);
+
+  if (error) {
+    console.error('Error sending message:', error);
+    addSystemMessage('Failed to send message.');
+  }
 }
+
+async function fetchInitialMessages() {
+  const { data: messages, error } = await supabase
+    .from('ChatMessage')
+    .select(`
+        *,
+        user:User (
+            walletAddress
+        )
+    `)
+    .order('createdAt', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error('Error fetching initial messages:', error);
+    return;
+  }
+
+  if (messages) {
+    // Clear existing messages
+    const chatMessagesContainer = document.getElementById('chatMessages');
+    if(chatMessagesContainer) {
+        chatMessagesContainer.innerHTML = '';
+    }
+    
+    // Add the new messages in the correct order
+    messages.reverse().forEach(message => {
+        const chatMessage: ChatMessage = {
+            id: message.id,
+            userId: message.userId,
+            message: message.message,
+            createdAt: message.createdAt,
+            user: message.user as { walletAddress: string },
+        };
+        addMessageToChat(chatMessage)
+    });
+  }
+}
+
 
 function addMessageToChat(message: ChatMessage) {
   const chatMessages = document.getElementById('chatMessages');
   if (!chatMessages) return;
 
-  // Create message element
   const messageElement = document.createElement('div');
   messageElement.className = 'chat-message';
-  
-  // Create message header
+
   const headerElement = document.createElement('div');
   headerElement.className = 'chat-message-header';
-  
-  // Create user element
+
   const userElement = document.createElement('span');
   userElement.className = 'chat-message-user';
-  userElement.textContent = formatUserName(message.user);
-  
-  // Create timestamp element
+  // Use the wallet address from the related user record
+  userElement.textContent = formatUserName(message.user.walletAddress);
+
   const timeElement = document.createElement('span');
   timeElement.className = 'chat-message-time';
-  timeElement.textContent = formatTimestamp(message.timestamp);
-  
+  timeElement.textContent = formatTimestamp(message.createdAt);
+
   headerElement.appendChild(userElement);
   headerElement.appendChild(timeElement);
-  
-  // Create message content
+
   const contentElement = document.createElement('div');
   contentElement.className = 'chat-message-content';
   contentElement.textContent = message.message;
-  
-  // Assemble message
+
   messageElement.appendChild(headerElement);
   messageElement.appendChild(contentElement);
-  
-  // Add to chat
+
   chatMessages.appendChild(messageElement);
   messageCount++;
-  
-  // Remove old messages if we have too many
+
   if (messageCount > MAX_MESSAGES) {
     const firstMessage = chatMessages.firstElementChild;
     if (firstMessage) {
@@ -102,19 +166,48 @@ function addMessageToChat(message: ChatMessage) {
       messageCount--;
     }
   }
-  
-  // Scroll to bottom
+
   scrollToBottom();
 }
 
+function updateOnlineCount(count: number) {
+  const onlineCountEl = document.getElementById('onlineCount');
+  if (onlineCountEl) {
+    onlineCountEl.textContent = `${count} online`;
+  }
+}
+
+const presenceChannelName = 'online-users';
+let presenceChannel = supabase.channel(presenceChannelName);
+
+export function trackPresence(walletAddress: string) {
+    presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+            const state = presenceChannel.presenceState();
+            const count = Object.keys(state).length;
+            updateOnlineCount(count);
+        })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+            console.log('New users have joined', newPresences);
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+            console.log('Users have left', leftPresences);
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await presenceChannel.track({
+                    online_at: new Date().toISOString(),
+                    wallet_address: walletAddress,
+                });
+            }
+        });
+}
+
+export function untrackPresence() {
+    supabase.removeChannel(presenceChannel);
+}
+
 function addSystemMessage(message: string) {
-  const systemMessage: ChatMessage = {
-    user: { id: 'system' },
-    message,
-    messageType: 'system',
-    timestamp: new Date().toISOString()
-  };
-  
   const chatMessages = document.getElementById('chatMessages');
   if (!chatMessages) return;
 
@@ -133,7 +226,6 @@ function addSystemMessage(message: string) {
   chatMessages.appendChild(messageElement);
   messageCount++;
   
-  // Remove old messages if we have too many
   if (messageCount > MAX_MESSAGES) {
     const firstMessage = chatMessages.firstElementChild;
     if (firstMessage) {
@@ -145,16 +237,9 @@ function addSystemMessage(message: string) {
   scrollToBottom();
 }
 
-function formatUserName(user: { id: string; address?: string }): string {
-  if (user.id === 'system') return 'System';
-  
-  // If we have an address, truncate it for display
-  if (user.address) {
-    return `${user.address.slice(0, 6)}...${user.address.slice(-4)}`;
-  }
-  
-  // Otherwise, truncate the ID
-  return user.id.length > 10 ? `${user.id.slice(0, 10)}...` : user.id;
+function formatUserName(walletAddress: string): string {
+  if (!walletAddress) return 'Anonymous';
+  return `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
 }
 
 function formatTimestamp(timestamp?: string): string {
@@ -173,30 +258,16 @@ function scrollToBottom() {
   }
 }
 
-// Rate limiting for sending messages
 let lastMessageTime = 0;
 const MESSAGE_COOLDOWN = 2000; // 2 seconds
 
-export function canSendMessage(): boolean {
+export function sendMessageWithRateLimit(userId: string, message: string) {
   const now = Date.now();
   if (now - lastMessageTime < MESSAGE_COOLDOWN) {
     const remainingTime = Math.ceil((MESSAGE_COOLDOWN - (now - lastMessageTime)) / 1000);
     addSystemMessage(`Please wait ${remainingTime} seconds before sending another message`);
-    return false;
+    return;
   }
   lastMessageTime = now;
-  return true;
-}
-
-// Enhanced sendMessage with rate limiting
-export function sendMessageWithRateLimit(userId: string, message: string) {
-  if (!canSendMessage()) return;
   sendMessage(userId, message);
 }
-
-// Export for debugging
-(window as any).chatDebug = {
-  addSystemMessage,
-  messageCount,
-  scrollToBottom
-};

@@ -3,6 +3,7 @@ import { handleConnectWallet, checkWalletConnection } from './auth';
 import { initChat, sendMessageWithRateLimit } from './chat';
 import { initializePlayer } from './video';
 import { initializeBetting } from './betting';
+import { type User } from "@supabase/supabase-js";
 
 console.log('Colosseum frontend script is running.');
 
@@ -21,6 +22,9 @@ async function initializeApp() {
       }
     });
   }
+
+  // Initialize chat for all users immediately
+  initChat();
   
   // If user is already connected, initialize features
   const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
@@ -43,10 +47,9 @@ async function initializeApp() {
   initializePlayer();
 }
 
-async function initializeUserFeatures(user: { id: string; address: string }) {
+async function initializeUserFeatures(user: User) {
   try {
-    // Initialize chat
-    initChat();
+    // Chat is now initialized globally, so we don't need to do it here.
     
     // Initialize betting with current battle
     const battleResponse = await fetch('/api/betting/battle/current');
@@ -110,6 +113,7 @@ function sendChatMessage() {
       // Get user data
       import('./auth').then(({ authData }) => {
         if (authData) {
+          // Use authData.id, which is the Supabase user ID
           sendMessageWithRateLimit(authData.id, message);
           chatInput.value = '';
           sendChatBtn.disabled = true;
