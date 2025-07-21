@@ -1,9 +1,9 @@
 import './style.css'
-import { handleConnectWallet, checkWalletConnection } from './auth';
+import { handleConnectWallet, checkWalletConnection, setAuthData } from './auth';
 import { initChat, sendMessageWithRateLimit } from './chat';
 import { initializePlayer } from './video';
-import { initializeBetting } from './betting';
 import { type User } from "@supabase/supabase-js";
+import { BettingArenaUI, type Battle } from './ui/BettingArenaUI';
 
 console.log('Colosseum frontend script is running.');
 
@@ -16,9 +16,25 @@ async function initializeApp() {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
   if (connectWalletBtn) {
     connectWalletBtn.addEventListener('click', async () => {
-      const user = await handleConnectWallet();
-      if (user) {
-        await initializeUserFeatures(user);
+      await handleConnectWallet();
+    });
+  }
+
+  // Set up test login button
+  const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
+  if (testLoginBtn) {
+    testLoginBtn.addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/users/test-user');
+        if (response.ok) {
+          const testUser = await response.json();
+          setAuthData(testUser); // Use the new function to set auth state
+        } else {
+          alert('Failed to log in as test user. Make sure you have seeded the database.');
+        }
+      } catch (error) {
+        console.error('Error during test login:', error);
+        alert('An error occurred during test login.');
       }
     });
   }
@@ -26,45 +42,34 @@ async function initializeApp() {
   // Initialize chat for all users immediately
   initChat();
   
-  // If user is already connected, initialize features
-  const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
-  if (userInfo && userInfo.style.display !== 'none') {
-    // User is already connected, get user data from auth module
-    const { authData } = await import('./auth');
-    if (authData) {
-      await initializeUserFeatures(authData);
-    }
-  }
-  
   // Initialize chat input functionality
   setupChatInput();
-  
   
   // Update viewer count (placeholder)
   updateViewerCount();
 
   // Initialize video player
   initializePlayer();
-}
 
-async function initializeUserFeatures(user: User) {
-  try {
-    // Chat is now initialized globally, so we don't need to do it here.
-    
-    // Initialize betting with current battle
-    const battleResponse = await fetch('/api/betting/battle/current');
-    if (battleResponse.ok) {
-      const battle = await battleResponse.json();
-      if (battle) {
-        initializeBetting(user.id, battle.id);
+  // Initialize Betting Arena UI
+  const bettingPanel = document.querySelector<HTMLElement>('.betting-content');
+  if (bettingPanel) {
+    const bettingArena = new BettingArenaUI('betting-arena-container');
+    try {
+      const response = await fetch('/api/battles/current');
+      if (response.ok) {
+        const battle: Battle = await response.json();
+        bettingArena.loadBattle(battle);
+        
+        const battleTitle = document.querySelector<HTMLHeadingElement>('#battleTitle');
+        if (battleTitle) battleTitle.textContent = battle.title;
+
+      } else {
+        console.log('No current battle found.');
       }
-    } else {
-      console.log('No current battle found');
-      // Set placeholder battle data
-      updateBattleInfo('Gladiator Arena', 'Maximus', 'Commodus');
+    } catch (error) {
+      console.error('Failed to load initial battle data:', error);
     }
-  } catch (error) {
-    console.error('Error initializing user features:', error);
   }
 }
 
@@ -128,17 +133,6 @@ function sendChatMessage() {
   }
 }
 
-function updateBattleInfo(title: string, fighterA: string, fighterB: string) {
-  const battleTitle = document.querySelector<HTMLHeadingElement>('#battleTitle');
-  const constituentAName = document.querySelector<HTMLSpanElement>('#constituentAName');
-  const constituentBName = document.querySelector<HTMLSpanElement>('#constituentBName');
-  
-  if (battleTitle) battleTitle.textContent = title;
-  if (constituentAName) constituentAName.textContent = fighterA;
-  if (constituentBName) constituentBName.textContent = fighterB;
-}
-
-
 function updateViewerCount() {
   const viewerNumber = document.querySelector<HTMLSpanElement>('#viewerNumber');
   if (viewerNumber) {
@@ -172,5 +166,4 @@ if (document.readyState === 'loading') {
 (window as any).colosseumApp = {
   initializeApp,
   updateViewerCount,
-  updateBattleInfo
 };

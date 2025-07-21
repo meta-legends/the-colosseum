@@ -3,11 +3,17 @@ import { supabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
 import { trackPresence, untrackPresence } from './chat';
 
+// This will hold the authenticated user data globally
+export let authData: User | { id: string; balance: number; walletAddress: string; } | null = null;
+
+export const setAuthData = (data: User | { id: string; balance: number; walletAddress: string; } | null) => {
+  authData = data;
+  updateUI(authData);
+};
+
 const userInfo = document.querySelector<HTMLDivElement>('#userInfo')!;
 const userAddressSpan = document.querySelector<HTMLSpanElement>('#userAddress')!;
 const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn')!;
-
-export let authData: User | null = null;
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -21,36 +27,37 @@ function generateAvatarGradient(address: string): string {
   return `linear-gradient(45deg, hsl(${hue1}, 70%, 60%), hsl(${hue2}, 70%, 60%), hsl(${hue3}, 70%, 60%))`;
 }
 
-function updateUIForUser(user: User | null) {
-  authData = user;
+function updateUI(user: User | { id: string; balance: number; walletAddress: string; } | null) {
+  const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+  const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
+  const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
+  const userAddress = document.querySelector<HTMLSpanElement>('#userAddress');
+  const battlePoints = document.querySelector<HTMLSpanElement>('#battlePoints');
 
-  if (user && user.email) {
-    const walletAddress = user.email.split('@')[0];
-    userAddressSpan.textContent = truncateAddress(walletAddress);
-
-    const userAvatar = document.querySelector<HTMLDivElement>('.user-avatar');
-    if (userAvatar) {
-      userAvatar.style.background = generateAvatarGradient(walletAddress);
-    }
-
+  if (user && connectWalletBtn && userInfo && userAddress && battlePoints && testLoginBtn) {
     connectWalletBtn.style.display = 'none';
+    testLoginBtn.style.display = 'none';
     userInfo.style.display = 'flex';
-
-    const battlePoints = document.querySelector<HTMLSpanElement>('#battlePoints');
-    if (battlePoints) {
-      battlePoints.textContent = '1,250'; 
-    }
     
-    // Start tracking presence when user is confirmed
-    trackPresence(walletAddress);
+    const address = 'walletAddress' in user ? user.walletAddress : user.email || '';
+    userAddress.textContent = shortenAddress(address);
+    
+    if ('balance' in user && user.balance !== null && user.balance !== undefined) {
+      const balanceValue = parseFloat(user.balance.toString());
+      battlePoints.textContent = balanceValue.toFixed(2);
+    } else {
+      battlePoints.textContent = "0.00";
+    }
 
-  } else {
+  } else if (connectWalletBtn && userInfo && testLoginBtn) {
     connectWalletBtn.style.display = 'block';
+    testLoginBtn.style.display = 'block';
     userInfo.style.display = 'none';
-
-    // Stop tracking presence when user logs out
-    untrackPresence();
   }
+}
+
+function shortenAddress(address: string, chars = 4) {
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
 }
 
 export async function handleConnectWallet(): Promise<User | null> {
@@ -78,7 +85,7 @@ export async function handleConnectWallet(): Promise<User | null> {
         }
         
         await supabase.auth.setSession(session);
-        updateUIForUser(user);
+        setAuthData(user);
         console.log('Wallet connected and session set:', user.email);
         return user;
       } else {
@@ -120,7 +127,7 @@ export async function checkWalletConnection(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     console.log('Found active Supabase session.');
-    updateUIForUser(session.user);
+    setAuthData(session.user);
   } else {
      console.log('No active Supabase session found.');
   }
@@ -130,10 +137,22 @@ export async function checkWalletConnection(): Promise<void> {
 supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth state changed:', event);
   if (event === 'SIGNED_OUT') {
-    updateUIForUser(null);
+    setAuthData(null);
   } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
     if(session) {
-        updateUIForUser(session.user);
+        setAuthData(session.user);
     }
   }
 });
+
+// Dummy functions for now
+async function connectWallet(): Promise<{ id: string, walletAddress: string, balance: number } | null> {
+  // In a real app, this would use ethers or web3modal
+  console.log("Connecting wallet...");
+  return null; // Placeholder
+}
+
+async function getConnectedWallet(): Promise<{ id: string, walletAddress: string, balance: number } | null> {
+  console.log("Checking for connected wallet...");
+  return null;
+}

@@ -13,35 +13,104 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum BattleType {
+  TEAM_BATTLE
+  BATTLE_ROYALE
+}
+
+enum BattleStatus {
+  PENDING
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum BetStatus {
+  PENDING
+  WON
+  LOST
+  CANCELLED
+}
+
 model User {
   id            String        @id @default(cuid())
   walletAddress String        @unique
+  balance       Decimal       @default(0) @db.Decimal(18, 6)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   bets          Bet[]
   chatMessages  ChatMessage[]
+  characters    Character[]
+}
+
+model Character {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  ownerId       String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  owner         User          @relation(fields: [ownerId], references: [id])
+  bets          Bet[]
+  battles       Battle[]      @relation("BattleParticipants")
+  bettingPools  BettingPool[]
 }
 
 model Battle {
-  id        String   @id @default(cuid())
-  title     String
-  startTime DateTime
-  status    String // PENDING, ACTIVE, FINISHED
-  winnerId  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  bets      Bet[]
+  id              String           @id @default(cuid())
+  title           String
+  type            BattleType
+  startTime       DateTime
+  status          BattleStatus     @default(PENDING)
+  winnerId        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bets            Bet[]
+  participants    Character[]      @relation("BattleParticipants")
+  bettingPools    BettingPool[]
+  marketSnapshots MarketSnapshot[]
+
+  @@index([status])
 }
 
 model Bet {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   battleId    String
-  constituent String // A or B
-  amount      Float
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
-  battle      Battle   @relation(fields: [battleId], references: [id])
+  characterId String
+  amount      Decimal   @db.Decimal(18, 6)
+  odds        Decimal   @db.Decimal(10, 4)
+  status      BetStatus @default(PENDING)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  battle      Battle    @relation(fields: [battleId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@index([userId])
+  @@index([battleId])
+  @@index([status])
+}
+
+model BettingPool {
+  id          String    @id @default(cuid())
+  battleId    String
+  characterId String
+  totalVolume Decimal   @default(0) @db.Decimal(18, 6)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  battle      Battle    @relation(fields: [battleId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@unique([battleId, characterId])
+}
+
+model MarketSnapshot {
+  id        String   @id @default(cuid())
+  battleId  String
+  odds      Json
+  createdAt DateTime @default(now())
+  battle    Battle   @relation(fields: [battleId], references: [id])
+
+  @@index([battleId, createdAt(sort: Desc)])
 }
 
 model ChatMessage {

@@ -6,20 +6,22 @@ import cors from 'cors';
 import authRouter from './api/auth';
 import videoRouter from './api/video';
 import initializeChat from './chat';
-import initializeBetting from './betting';
 import bettingRouter from './api/betting';
+import usersRouter from './api/users'; // Import the new router
 
 const app = express();
 const port = 3001;
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: ["http://localhost:5173", "http://localhost:5174"],
   methods: ["GET", "POST"]
 }));
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
 app.use('/api/video', videoRouter);
+app.use('/api', bettingRouter);
+app.use('/api', usersRouter); // Use the new router
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -29,14 +31,11 @@ const io = new Server(server, {
   },
 });
 
-app.use('/api/betting', bettingRouter(io));
-
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Welcome to The Colosseum' });
 });
 
 initializeChat(io);
-initializeBetting(io);
 
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);

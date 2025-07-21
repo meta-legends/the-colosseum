@@ -1,71 +1,60 @@
-import prisma from '../db';
-import { Router, Request, Response } from 'express';
-import { Server } from 'socket.io';
-import { getBettingLocked, triggerOddsRecalculation } from '../betting';
+import express from 'express';
+import { BettingManager } from '../BettingManager';
+import BigNumber from '../utils/bignumber';
+import { PrismaClient } from '@prisma/client';
 
+const router = express.Router();
+const prisma = new PrismaClient();
 
-export default (io: Server) => {
-  const router = Router();
-
-  // GET /battle/current
-  router.get('/battle/current', async (req: Request, res: Response) => {
+// GET /api/battles/current
+router.get('/battles/current', async (req, res) => {
   try {
     const battle = await prisma.battle.findFirst({
-      where: {
-        status: {
-          in: ['ACTIVE', 'PENDING'],
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where: { status: { in: ['PENDING', 'ACTIVE'] } },
+      orderBy: { startTime: 'asc' },
+      include: { participants: true },
     });
-    res.json(battle);
+    if (battle) {
+      res.json(battle);
+    } else {
+      res.status(404).json({ error: 'No active battle found' });
+    }
   } catch (error) {
-    console.error('Failed to fetch current battle', error);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ error: 'Failed to fetch current battle' });
   }
 });
 
-// POST /bet
-  // POST /bet
-  router.post('/bet', async (req: Request, res: Response) => {
-    if (getBettingLocked()) {
-      return res.status(400).json({ error: 'Betting is currently locked' });
-    }
 
-    const { userId, battleId, constituent, amount } = req.body;
-
-    if (!userId || !battleId || !constituent || amount === undefined) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    try {
-      const battle = await prisma.battle.findUnique({
-        where: { id: battleId },
-      });
-
-      if (!battle || (battle.status !== 'ACTIVE' && battle.status !== 'PENDING')) {
-        return res.status(400).json({ error: 'Battle not open for betting' });
-      }
-
-      const newBet = await prisma.bet.create({
-        data: {
-          userId,
-          battleId,
-          constituent,
-          amount: parseFloat(amount),
-        },
-      });
-
-      await triggerOddsRecalculation(io, battleId);
-
-      res.status(201).json(newBet);
+// GET /api/battles/:battleId/odds
+router.get('/battles/:battleId/odds', async (req, res) => {
+  try {
+    const { battleId } = req.params;
+    const oddsMap = await BettingManager.getOdds(battleId);
+    // Convert map to a plain object for JSON serialization
+    const oddsObject = Object.fromEntries(oddsMap.entries());
+    res.json(oddsObject);
   } catch (error) {
-    console.error('Failed to place bet', error);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
-  });
+});
 
-  return router;
-};
+// POST /api/battles/:battleId/bet
+router.post('/battles/:battleId/bet', async (req, res) => {
+  try {
+    const { battleId } = req.params;
+    const { userId, characterId, amount } = req.body;
+
+    if (!userId || !characterId || !amount) {
+      return res.status(400).json({ error: 'Missing required fields: userId, characterId, amount' });
+    }
+
+    const betAmount = new BigNumber(amount);
+    const newBet = await BettingManager.placeBet(userId, battleId, characterId, betAmount);
+    
+    res.status(201).json(newBet);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
+  }
+});
+
+export default router;
