@@ -1,14 +1,16 @@
 import { ethers } from "ethers";
 import { supabase } from './supabase';
-import type { User } from '@supabase/supabase-js';
+import { type User } from "@supabase/supabase-js";
 import { trackPresence, untrackPresence } from './chat';
+import { eventBus } from './events';
 
 // This will hold the authenticated user data globally
-export let authData: User | { id: string; balance: number; walletAddress: string; } | null = null;
+export let authData: User | { id: string; balance: number | string; walletAddress: string; } | null = null;
 
-export const setAuthData = (data: User | { id: string; balance: number; walletAddress: string; } | null) => {
+export const setAuthData = (data: User | { id: string; balance: number | string; walletAddress: string; } | null) => {
   authData = data;
   updateUI(authData);
+  eventBus.emit('authChanged', authData); // Emit event
 };
 
 const userInfo = document.querySelector<HTMLDivElement>('#userInfo')!;
@@ -27,7 +29,7 @@ function generateAvatarGradient(address: string): string {
   return `linear-gradient(45deg, hsl(${hue1}, 70%, 60%), hsl(${hue2}, 70%, 60%), hsl(${hue3}, 70%, 60%))`;
 }
 
-function updateUI(user: User | { id: string; balance: number; walletAddress: string; } | null) {
+function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; } | null) {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
   const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
   const userInfo = document.querySelector<HTMLDivElement>('#userInfo');

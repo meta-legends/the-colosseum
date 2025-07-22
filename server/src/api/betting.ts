@@ -24,6 +24,36 @@ router.get('/battles/current', async (req, res) => {
   }
 });
 
+// GET /api/battles/:battleId/bets?userId=...
+router.get('/battles/:battleId/bets', async (req, res) => {
+  try {
+    const { battleId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ error: 'A userId query parameter is required.' });
+    }
+
+    const bets = await prisma.bet.findMany({
+      where: {
+        battleId: battleId,
+        userId: userId,
+      },
+      include: {
+        character: {
+          select: { name: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json(bets);
+  } catch (error) {
+    console.error('Failed to fetch user bets:', error);
+    res.status(500).json({ error: 'Failed to fetch user bets' });
+  }
+});
+
 
 // GET /api/battles/:battleId/odds
 router.get('/battles/:battleId/odds', async (req, res) => {

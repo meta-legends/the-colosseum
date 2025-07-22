@@ -39,8 +39,13 @@ export class MarketMakingEngine {
     const p2_adj = p2_base.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
 
     // Step 3 & 4: Liquidity-Constrained Odds & House Edge
-    const max_safe_odds1 = v2.times(SAFETY_BUFFER).dividedBy(v1.times(new BigNumber(1).minus(F_HOUSE)));
-    const max_safe_odds2 = v1.times(SAFETY_BUFFER).dividedBy(v2.times(new BigNumber(1).minus(F_HOUSE)));
+    const max_safe_odds1 = v1.isZero()
+      ? MAX_ODDS_TEAM_BATTLE
+      : v2.times(SAFETY_BUFFER).dividedBy(v1.times(new BigNumber(1).minus(F_HOUSE)));
+    
+    const max_safe_odds2 = v2.isZero()
+      ? MAX_ODDS_TEAM_BATTLE
+      : v1.times(SAFETY_BUFFER).dividedBy(v2.times(new BigNumber(1).minus(F_HOUSE)));
 
     // Step 5: Convert to Decimal Odds
     const p1_final = p1_adj.times(new BigNumber(1).minus(F_HOUSE));

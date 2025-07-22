@@ -42,8 +42,8 @@ async function main() {
   });
   console.log(`Created character: ${commodus.name}`);
 
-  // 3. Create a battle scheduled for 5 minutes in the future
-  const startTime = new Date(Date.now() + 5 * 60 * 1000);
+  // 3. Create a battle scheduled for 15 minutes in the future
+  const startTime = new Date(Date.now() + 15 * 60 * 1000);
   const battle = await prisma.battle.create({
     data: {
       title: 'Final Duel',

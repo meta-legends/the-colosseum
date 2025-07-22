@@ -8,4 +8,6 @@ export const MIN_ODDS = new BigNumber('1.05');
 export const MAX_ODDS_TEAM_BATTLE = new BigNumber('20.0');
 export const MAX_ODDS_BATTLE_ROYALE = new BigNumber('100.0');
 
-export const SAFETY_BUFFER = new BigNumber('0.9'); 
+export const SAFETY_BUFFER = new BigNumber('0.9');
+
+export const BOOTSTRAP_LIQUIDITY = new BigNumber('100'); // For cold-start markets 

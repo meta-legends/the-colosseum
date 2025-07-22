@@ -1,7 +1,7 @@
 import { PrismaClient, Battle, BattleType, Bet } from '@prisma/client';
 import BigNumber from './utils/bignumber';
 import { MarketMakingEngine } from './MarketMakingEngine';
-import { SAFETY_BUFFER } from './constants';
+import { BOOTSTRAP_LIQUIDITY, SAFETY_BUFFER } from './constants';
 
 const prisma = new PrismaClient();
 
@@ -27,14 +27,20 @@ export class BettingManager {
     const requiredLiquidity = netPayout.minus(amount);
 
     let opposingVolume: BigNumber;
+    const totalVolume = Array.from(pools.values()).reduce((sum, vol) => sum.plus(vol), new BigNumber(0));
 
-    if (battle.type === BattleType.TEAM_BATTLE) {
-      const opposingCharacterId = Array.from(pools.keys()).find(id => id !== characterId);
-      opposingVolume = pools.get(opposingCharacterId!) || new BigNumber(0);
-    } else { // BATTLE_ROYALE
-      const totalVolume = Array.from(pools.values()).reduce((sum, vol) => sum.plus(vol), new BigNumber(0));
-      const currentCharacterVolume = pools.get(characterId) || new BigNumber(0);
-      opposingVolume = totalVolume.minus(currentCharacterVolume);
+    // COLD START LOGIC: If the market is empty, use bootstrap liquidity.
+    if (totalVolume.isZero()) {
+      opposingVolume = BOOTSTRAP_LIQUIDITY;
+    } else {
+      // NORMAL LOGIC: Use real liquidity from the opposing pool.
+      if (battle.type === BattleType.TEAM_BATTLE) {
+        const opposingCharacterId = Array.from(pools.keys()).find(id => id !== characterId);
+        opposingVolume = pools.get(opposingCharacterId!) || new BigNumber(0);
+      } else { // BATTLE_ROYALE
+        const currentCharacterVolume = pools.get(characterId) || new BigNumber(0);
+        opposingVolume = totalVolume.minus(currentCharacterVolume);
+      }
     }
 
     const availableLiquidity = opposingVolume.times(SAFETY_BUFFER);
