@@ -11,6 +11,7 @@ export interface Battle {
   id: string;
   title: string;
   type: 'TEAM_BATTLE' | 'BATTLE_ROYALE';
+  bettingType: 'AMM' | 'PARIMUTUEL'; // Add bettingType
   participants: Character[];
   startTime: string; // Add startTime to the interface
 }
@@ -26,6 +27,7 @@ export class BettingArenaUI {
   private container: HTMLElement;
   private battle: Battle | null = null;
   private odds: Map<string, number> = new Map(); // Using standard numbers for client-side
+  private pools: Map<string, number> = new Map(); // For parimutuel
   private oddsPollInterval: number | null = null;
   private countdownInterval: number | null = null;
   private bettingLocked: boolean = false;
@@ -147,6 +149,19 @@ export class BettingArenaUI {
   }
 
   private createFighterCard(character: Character): string {
+    if (this.battle?.bettingType === 'PARIMUTUEL') {
+      const poolSize = this.pools.get(character.id)?.toFixed(2) || '0.00';
+      const isSelected = this.selectedCharacterId === character.id;
+      return `
+        <div class="fighter ${isSelected ? 'selected' : ''}" data-character-id="${character.id}">
+          <div class="fighter-name">${character.name}</div>
+          <div class="fighter-pool-size">Pool: ${poolSize}</div>
+          <button class="bet-button" ${this.bettingLocked ? 'disabled' : ''}>Select</button>
+        </div>
+      `;
+    }
+
+    // AMM Card
     const characterOdds = this.odds.get(character.id)?.toFixed(2) || '...';
     const isSelected = this.selectedCharacterId === character.id;
     return `
@@ -186,9 +201,30 @@ export class BettingArenaUI {
 
     const betAmountInput = this.container.querySelector<HTMLInputElement>('#betAmount');
     const amount = parseFloat(betAmountInput?.value || '0');
+    const character = this.battle?.participants.find(p => p.id === this.selectedCharacterId);
+
+    if (this.battle?.bettingType === 'PARIMUTUEL') {
+        const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum + vol, 0);
+        const myPool = this.pools.get(this.selectedCharacterId) || 0;
+        const opposingPool = totalPool - myPool;
+        const myShare = (amount / (myPool + amount));
+        const payout = amount + (opposingPool * myShare);
+
+        if (!character || !amount) {
+            return '<button id="confirmBetBtn" class="bet-button-confirm" disabled>Enter an amount</button>';
+        }
+
+        return `
+            <div class="confirmation-details">
+                <span>Est. Payout: ${payout.toFixed(2)}</span>
+            </div>
+            <button id="confirmBetBtn" class="bet-button-confirm">Confirm Bet on ${character.name}</button>
+        `;
+    }
+
+    // AMM Confirmation
     const odds = this.odds.get(this.selectedCharacterId) || 0;
     const payout = amount * odds;
-    const character = this.battle?.participants.find(p => p.id === this.selectedCharacterId);
 
     if (!character || !amount) {
       return '<button id="confirmBetBtn" class="bet-button-confirm" disabled>Enter an amount</button>';
@@ -214,8 +250,10 @@ export class BettingArenaUI {
         return;
     }
 
+    const endpoint = this.battle.bettingType === 'PARIMUTUEL' ? `/api/mvp/battles/${this.battle.id}/bet` : `/api/battles/${this.battle.id}/bet`;
+
     try {
-        const response = await fetch(`/api/battles/${this.battle.id}/bet`, {
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -229,13 +267,27 @@ export class BettingArenaUI {
 
         if (response.ok) {
             const character = this.battle.participants.find(p => p.id === characterId);
-            const odds = this.odds.get(characterId) || 0;
-            this.confirmedBets.push({
-              characterName: character?.name || 'Unknown',
-              amount: amount,
-              odds: odds,
-              payout: amount * odds,
-            });
+            if (this.battle.bettingType === 'PARIMUTUEL') {
+                const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum + vol, 0);
+                const myPool = this.pools.get(characterId) || 0;
+                const opposingPool = totalPool - myPool;
+                const myShare = (amount / (myPool + amount));
+                const payout = amount + (opposingPool * myShare);
+                this.confirmedBets.push({
+                  characterName: character?.name || 'Unknown',
+                  amount: amount,
+                  odds: 0, // Parimutuel doesn't have fixed odds
+                  payout: payout,
+                });
+            } else {
+                const odds = this.odds.get(characterId) || 0;
+                this.confirmedBets.push({
+                  characterName: character?.name || 'Unknown',
+                  amount: amount,
+                  odds: odds,
+                  payout: amount * odds,
+                });
+            }
             this.selectedCharacterId = null; // Reset selection
             this.render(); // Re-render to show ticket and hide confirmation
             alert(`Bet placed successfully!`);
@@ -288,9 +340,35 @@ export class BettingArenaUI {
     }, 1000);
   }
 
-  private async updateOdds() {
+  private async updateOdds() { // This method will now handle both Odds (AMM) and Pools (Parimutuel)
     if (!this.battle || this.bettingLocked) return;
 
+    if (this.battle.bettingType === 'PARIMUTUEL') {
+        try {
+            const response = await fetch(`/api/mvp/battles/${this.battle.id}/pools`);
+            if (!response.ok) throw new Error('Failed to fetch pools');
+            const poolsData = await response.json();
+            
+            let hasChanged = false;
+            poolsData.forEach((pool: any) => {
+                const newPoolSize = parseFloat(pool.totalVolume);
+                if (this.pools.get(pool.characterId) !== newPoolSize) {
+                    this.pools.set(pool.characterId, newPoolSize);
+                    hasChanged = true;
+                }
+            });
+
+            if (hasChanged) {
+                this.render(); // Re-render the whole component to update pool sizes and est. payouts
+            }
+        } catch (error) {
+            console.error("Error updating pools:", error);
+            this.stopOddsPolling();
+        }
+        return;
+    }
+    
+    // AMM Logic
     try {
       const response = await fetch(`/api/battles/${this.battle.id}/odds`);
       if (!response.ok) throw new Error('Failed to fetch odds');

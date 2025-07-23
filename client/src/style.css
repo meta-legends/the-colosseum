@@ -110,6 +110,17 @@ img {
   border: 0 !important;
 }
 
+.fighter-odds {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--primary);
+}
+
+.fighter-pool-size {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
 .betting-panel .fighter.selected {
   border-color: var(--primary);
   box-shadow: 0 0 10px var(--primary);

@@ -25,8 +25,14 @@ enum BattleStatus {
   CANCELLED
 }
 
+enum BettingType {
+  AMM
+  PARIMUTUEL
+}
+
 enum BetStatus {
   PENDING
+  PENDING_LIQUIDITY // For parimutuel bets waiting for an opposing bet
   WON
   LOST
   CANCELLED
@@ -59,6 +65,7 @@ model Battle {
   id              String           @id @default(cuid())
   title           String
   type            BattleType
+  bettingType     BettingType      @default(PARIMUTUEL)
   startTime       DateTime
   status          BattleStatus     @default(PENDING)
   winnerId        String?

@@ -33,7 +33,9 @@ export class MarketMakingEngine {
     const p2_base = v1.dividedBy(v_total);
 
     // Step 2: Market Making Adjustment (Inverted Smoothing)
-    const s = BigNumber.max(0.05, new BigNumber(0.3).minus(v_total.dividedBy(50)));
+    // By reducing the divisor from 50 to 20, the smoothing effect diminishes more quickly,
+    // making the odds more volatile and reactive to betting volume.
+    const s = BigNumber.max(0.05, new BigNumber(0.3).minus(v_total.dividedBy(20)));
     
     const p1_adj = p1_base.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
     const p2_adj = p2_base.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
