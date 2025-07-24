@@ -1,4 +1,5 @@
 import { eventBus } from '../events';
+import BigNumber from 'bignumber.js';
 
 // Define a type for the battle data we expect from the API
 export interface Character {
@@ -13,6 +14,7 @@ export interface Battle {
   type: 'TEAM_BATTLE' | 'BATTLE_ROYALE';
   bettingType: 'AMM' | 'PARIMUTUEL'; // Add bettingType
   participants: Character[];
+  bettingPools: { characterId: string; totalVolume: string; }[];
   startTime: string; // Add startTime to the interface
 }
 
@@ -83,162 +85,57 @@ export class BettingArenaUI {
     }
   }
 
-  private setupEventListeners() {
-    this.container.addEventListener('click', (e) => {
-      console.log('Click event detected on container.');
-      const target = e.target as HTMLElement;
-
-      // Handle fighter selection
-      const fighterCard = target.closest<HTMLElement>('.fighter');
-      if (fighterCard && target.classList.contains('bet-button')) {
-        this.selectedCharacterId = this.selectedCharacterId === fighterCard.dataset.characterId ? null : fighterCard.dataset.characterId || null;
-        console.log('Fighter selected:', this.selectedCharacterId);
-        this.render();
-        return;
-      }
-
-      // Handle confirm button click
-      if (target.id === 'confirmBetBtn' && !this.bettingLocked) {
-        const betAmountInput = this.container.querySelector<HTMLInputElement>('#betAmount');
-        const amount = parseFloat(betAmountInput?.value || '0');
-        if (this.selectedCharacterId && amount > 0) {
-          this.handleConfirmBet(this.selectedCharacterId, amount);
-        }
-      }
-    });
+  private setupEventListeners(): void {
+    if (!this.container) return;
+    this.container.addEventListener('click', this.handleDelegatedClick.bind(this));
     
-    this.container.addEventListener('input', (e) => {
-      const target = e.target as HTMLElement;
-      if (target.id === 'betAmount' && this.selectedCharacterId) {
+    // Use 'input' event for real-time updates without losing focus
+    this.container.addEventListener('input', (event) => {
+      const target = event.target as HTMLElement;
+      if (target.id === 'bet-amount-input' && this.selectedCharacterId) {
         this.updateConfirmationDetails();
       }
     });
   }
 
-  private render() {
-    console.log('Rendering UI. Selected character:', this.selectedCharacterId);
-    
-    if (!this.battle) {
-      this.container.innerHTML = '<p>Waiting for the next battle to begin...</p>';
-      return;
+  private handleDelegatedClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    const action = target.dataset.action;
+    const characterId = target.dataset.characterId || '';
+
+    if (action === 'select-character' && characterId) {
+      this.handleSelectCharacter(characterId);
+    } else if (action === 'confirm-bet') {
+      this.handleConfirmBet();
     }
-
-    const fightersHtml = this.battle.participants.map(p => this.createFighterCard(p)).join(
-      this.battle.type === 'TEAM_BATTLE' ? '<div class="vs-divider">VS</div>' : ''
-    );
-    
-    const ticketsHtml = this.confirmedBets.map(ticket => this.createTicketHtml(ticket)).join('');
-
-    this.container.innerHTML = `
-      <div class="fighters ${this.battle.type === 'BATTLE_ROYALE' ? 'battle-royale' : ''}">
-        ${fightersHtml}
-      </div>
-      <div class="betting-controls">
-        <div class="bet-amount-container">
-          <label for="betAmount">Bet Amount</label>
-          <input type="number" id="betAmount" placeholder="0.00" min="0.01" step="0.01" ${this.bettingLocked ? 'disabled' : ''} />
-        </div>
-        <div id="confirmation-area">
-          ${this.createConfirmationHtml()}
-        </div>
-      </div>
-      <div class="bet-tickets-container">
-        ${ticketsHtml}
-      </div>
-    `;
-  }
-
-  private createFighterCard(character: Character): string {
-    if (this.battle?.bettingType === 'PARIMUTUEL') {
-      const poolSize = this.pools.get(character.id)?.toFixed(2) || '0.00';
-      const isSelected = this.selectedCharacterId === character.id;
-      return `
-        <div class="fighter ${isSelected ? 'selected' : ''}" data-character-id="${character.id}">
-          <div class="fighter-name">${character.name}</div>
-          <div class="fighter-pool-size">Pool: ${poolSize}</div>
-          <button class="bet-button" ${this.bettingLocked ? 'disabled' : ''}>Select</button>
-        </div>
-      `;
-    }
-
-    // AMM Card
-    const characterOdds = this.odds.get(character.id)?.toFixed(2) || '...';
-    const isSelected = this.selectedCharacterId === character.id;
-    return `
-      <div class="fighter ${isSelected ? 'selected' : ''}" data-character-id="${character.id}">
-        <div class="fighter-name">${character.name}</div>
-        <div class="fighter-odds">${characterOdds}x</div>
-        <button class="bet-button" ${this.bettingLocked ? 'disabled' : ''}>Select</button>
-      </div>
-    `;
-  }
-
-  private createTicketHtml(ticket: BetTicket): string {
-    return `
-      <div class="bet-ticket">
-        <p><strong>Bet on:</strong> ${ticket.characterName}</p>
-        <p><strong>Amount:</strong> ${ticket.amount.toFixed(2)}</p>
-        <p><strong>Odds:</strong> ${ticket.odds.toFixed(2)}x</p>
-        <p><strong>Potential Payout:</strong> ${ticket.payout.toFixed(2)}</p>
-      </div>
-    `;
   }
   
-  private updateConfirmationDetails() {
-      const confirmationArea = this.container.querySelector('#confirmation-area');
-      if (confirmationArea) {
-        confirmationArea.innerHTML = this.createConfirmationHtml();
-      }
-  }
+  private updateConfirmationDetails(): void {
+    const confirmationDiv = this.container.querySelector<HTMLDivElement>('.confirmation-details');
+    const betAmountInput = this.container.querySelector<HTMLInputElement>('#bet-amount-input');
+    if (!confirmationDiv || !betAmountInput || !this.battle || !this.selectedCharacterId) return;
 
-  private createConfirmationHtml(): string {
-    if (this.bettingLocked) {
-      return '<div class="betting-closed-message">Betting is now closed.</div>';
+    const amount = new BigNumber(betAmountInput.value || 0);
+    const selectedPool = this.battle.bettingPools.find(p => p.characterId === this.selectedCharacterId);
+    
+    if (!selectedPool || amount.isNaN() || amount.isLessThanOrEqualTo(0)) {
+      confirmationDiv.innerHTML = '<p>Enter a valid bet amount.</p>';
+      return;
     }
-    if (!this.selectedCharacterId) {
-      return '';
-    }
-
-    const betAmountInput = this.container.querySelector<HTMLInputElement>('#betAmount');
-    const amount = parseFloat(betAmountInput?.value || '0');
-    const character = this.battle?.participants.find(p => p.id === this.selectedCharacterId);
-
-    if (this.battle?.bettingType === 'PARIMUTUEL') {
-        const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum + vol, 0);
-        const myPool = this.pools.get(this.selectedCharacterId) || 0;
-        const opposingPool = totalPool - myPool;
-        const myShare = (amount / (myPool + amount));
-        const payout = amount + (opposingPool * myShare);
-
-        if (!character || !amount) {
-            return '<button id="confirmBetBtn" class="bet-button-confirm" disabled>Enter an amount</button>';
-        }
-
-        return `
-            <div class="confirmation-details">
-                <span>Est. Payout: ${payout.toFixed(2)}</span>
-            </div>
-            <button id="confirmBetBtn" class="bet-button-confirm">Confirm Bet on ${character.name}</button>
-        `;
-    }
-
-    // AMM Confirmation
-    const odds = this.odds.get(this.selectedCharacterId) || 0;
-    const payout = amount * odds;
-
-    if (!character || !amount) {
-      return '<button id="confirmBetBtn" class="bet-button-confirm" disabled>Enter an amount</button>';
-    }
-
-    return `
-      <div class="confirmation-details">
-        <span>Payout: ${payout.toFixed(2)}</span>
-      </div>
-      <button id="confirmBetBtn" class="bet-button-confirm">Confirm Bet on ${character.name}</button>
+    
+    const potentialPayoutHtml = this.getPotentialPayoutHtml(amount, this.selectedCharacterId);
+    confirmationDiv.innerHTML = `
+      <p>You are betting: ${amount.toFixed(2)}</p>
+      ${potentialPayoutHtml}
     `;
   }
 
-  private async handleConfirmBet(characterId: string, amount: number) {
+  private handleSelectCharacter(characterId: string): void {
+    this.selectedCharacterId = characterId;
+    this.render(); // Re-render to show selection and confirmation box
+  }
+
+  private async handleConfirmBet(): Promise<void> {
     if (!this.battle || !this.battle.id) {
         alert("No active battle to bet on.");
         return;
@@ -250,6 +147,13 @@ export class BettingArenaUI {
         return;
     }
 
+    const amountInput = this.container.querySelector<HTMLInputElement>('#bet-amount-input');
+    const amount = parseFloat(amountInput?.value || '0');
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid bet amount.');
+      return;
+    }
+
     const endpoint = this.battle.bettingType === 'PARIMUTUEL' ? `/api/mvp/battles/${this.battle.id}/bet` : `/api/battles/${this.battle.id}/bet`;
 
     try {
@@ -258,7 +162,7 @@ export class BettingArenaUI {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId: authData.id,
-                characterId: characterId,
+                characterId: this.selectedCharacterId,
                 amount: amount,
             }),
         });
@@ -266,10 +170,10 @@ export class BettingArenaUI {
         const result = await response.json();
 
         if (response.ok) {
-            const character = this.battle.participants.find(p => p.id === characterId);
+            const character = this.battle.participants.find(p => p.id === this.selectedCharacterId);
             if (this.battle.bettingType === 'PARIMUTUEL') {
                 const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum + vol, 0);
-                const myPool = this.pools.get(characterId) || 0;
+                const myPool = this.pools.get(this.selectedCharacterId!) || 0;
                 const opposingPool = totalPool - myPool;
                 const myShare = (amount / (myPool + amount));
                 const payout = amount + (opposingPool * myShare);
@@ -280,7 +184,7 @@ export class BettingArenaUI {
                   payout: payout,
                 });
             } else {
-                const odds = this.odds.get(characterId) || 0;
+                const odds = this.odds.get(this.selectedCharacterId!) || 0;
                 this.confirmedBets.push({
                   characterName: character?.name || 'Unknown',
                   amount: amount,
@@ -421,5 +325,119 @@ export class BettingArenaUI {
       clearInterval(this.oddsPollInterval);
       this.oddsPollInterval = null;
     }
+  }
+
+  private render() {
+    if (!this.container) return;
+
+    if (!this.battle) {
+      this.container.innerHTML = '<p class="status-message">Waiting for the next battle to begin...</p>';
+      return;
+    }
+
+    const fightersHtml = this.battle.participants.map(p => this.createFighterCard(p)).join(
+      this.battle.type === 'TEAM_BATTLE' ? '<div class="vs-divider">VS</div>' : ''
+    );
+    
+    const ticketsHtml = this.confirmedBets.map(ticket => this.createTicketHtml(ticket)).join('');
+
+    this.container.innerHTML = `
+      <div class="battle-header">
+        <h2>${this.battle.title}</h2>
+        <div class="betting-timer-container">
+          Betting closes in: <span id="bettingTimer">--:--</span>
+        </div>
+      </div>
+      <div class="fighters ${this.battle.type === 'BATTLE_ROYALE' ? 'battle-royale' : ''}">
+        ${fightersHtml}
+      </div>
+      <div id="confirmation-area">
+        ${this.createConfirmationHtml()}
+      </div>
+      <div class="bet-tickets-container">
+        <h3>Your Bets</h3>
+        ${ticketsHtml.length > 0 ? ticketsHtml : '<p>You have not placed any bets for this battle.</p>'}
+      </div>
+    `;
+  }
+
+  private createFighterCard(character: Character): string {
+    const isSelected = this.selectedCharacterId === character.id;
+    let detailsHtml = '';
+
+    if (this.battle?.bettingType === 'PARIMUTUEL') {
+      const poolSize = this.pools.get(character.id)?.toFixed(2) || '0.00';
+      detailsHtml = `<div class="fighter-pool-size">Pool: ${poolSize} Pts</div>`;
+    } else { // AMM
+      const characterOdds = this.odds.get(character.id)?.toFixed(2) || '...';
+      detailsHtml = `<div class="fighter-odds">${characterOdds}x</div>`;
+    }
+
+    return `
+      <div class="fighter ${isSelected ? 'selected' : ''}" data-character-id="${character.id}" data-action="select-character">
+        <div class="fighter-name">${character.name}</div>
+        ${detailsHtml}
+        <button class="bet-button" data-action="select-character" data-character-id="${character.id}" ${this.bettingLocked ? 'disabled' : ''}>
+          ${isSelected ? 'Selected' : 'Select'}
+        </button>
+      </div>
+    `;
+  }
+
+  private createConfirmationHtml(): string {
+    if (this.bettingLocked) {
+      return '<div class="betting-closed-message">Betting is now closed.</div>';
+    }
+    if (!this.selectedCharacterId || !this.battle) {
+      return ''; // Don't show anything if no character is selected
+    }
+
+    const character = this.battle.participants.find(p => p.id === this.selectedCharacterId);
+    if (!character) return '';
+
+    return `
+      <div class="confirmation-box">
+        <h4>Confirm Bet on ${character.name}</h4>
+        <input type="number" id="bet-amount-input" placeholder="0.00" min="0.01" step="0.01" />
+        <div class="confirmation-details">
+          <p>Enter a bet amount.</p>
+        </div>
+        <button id="confirm-bet-btn" data-action="confirm-bet" class="bet-button-confirm">Confirm Bet</button>
+      </div>
+    `;
+  }
+
+  private getPotentialPayoutHtml(amount: BigNumber, characterId: string): string {
+    if (!this.battle) return '';
+
+    if (this.battle.bettingType === 'PARIMUTUEL') {
+      const myPool = new BigNumber(this.pools.get(characterId) || 0);
+      const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum.plus(new BigNumber(vol)), new BigNumber(0));
+      const opposingPool = totalPool.minus(myPool);
+      
+      if (myPool.plus(amount).isZero()) return '<p>Payout: N/A</p>';
+      
+      const myShare = amount.dividedBy(myPool.plus(amount));
+      const estimatedWinnings = myShare.times(opposingPool);
+      const estimatedPayout = amount.plus(estimatedWinnings);
+      
+      return `<p>Est. Payout: ${estimatedPayout.toFixed(2)} Pts</p>`;
+    } else { // AMM
+      const odds = new BigNumber(this.odds.get(characterId) || 0);
+      const payout = amount.times(odds);
+      return `<p>Potential Payout: ${payout.toFixed(2)} Pts (at ${odds.toFixed(2)}x odds)</p>`;
+    }
+  }
+
+  private createTicketHtml(ticket: BetTicket): string {
+    const payoutText = ticket.odds === 0 ? `Est. Payout: ${ticket.payout.toFixed(2)}` : `Payout: ${ticket.payout.toFixed(2)}`;
+    return `
+      <div class="bet-ticket">
+        <p><strong>Bet on:</strong> ${ticket.characterName}</p>
+        <p><strong>Amount:</strong> ${ticket.amount.toFixed(2)}</p>
+        <p><strong>${ticket.odds === 0 ? 'Pool Bet' : `Odds: ${ticket.odds.toFixed(2)}x`}</p>
+        <p><strong>${payoutText}</strong></p>
+      </div>
+    `;
   }
 } 

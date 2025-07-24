@@ -1,16 +1,15 @@
-import { PrismaClient, Bet, BetStatus, Battle, Character, User, BattleStatus } from '@prisma/client';
+import { PrismaClient, Bet, BetStatus, BattleStatus } from '@prisma/client';
 import BigNumber from './utils/bignumber';
-import { F_PLATFORM_IMMEDIATE, F_PLATFORM_PENDING } from './constants';
+import { F_HOUSE, F_PLATFORM_IMMEDIATE } from './constants';
 
 const prisma = new PrismaClient();
-const F_PLATFORM = F_PLATFORM_IMMEDIATE.plus(F_PLATFORM_PENDING);
 
 /**
  * Manages the logic for the simplified Parimutuel (MVP) betting system.
  */
 export class MvpBettingManager {
   /**
-   * Places a bet for a user in a Parimutuel battle.
+   * Places a bet for a user in a Parimutuel battle using the Split-Fee Refund model.
    */
   static async placeBet(
     userId: string,
@@ -20,7 +19,7 @@ export class MvpBettingManager {
   ): Promise<Bet> {
     
     return prisma.$transaction(async (tx) => {
-      // 1. Fetch all necessary data
+      // 1. Fetch data and perform initial checks
       const user = await tx.user.findUnique({ where: { id: userId } });
       const battle = await tx.battle.findUnique({
         where: { id: battleId },
@@ -36,33 +35,30 @@ export class MvpBettingManager {
       const userBalance = new BigNumber(user.balance.toString());
       if (userBalance.isLessThan(amount)) throw new Error("Insufficient balance");
 
-      // 2. Check for opposing liquidity
+      // 2. Determine bet status based on opposing liquidity
       const opposingCharacterId = battle.participants.find(p => p.id !== characterId)?.id;
       if (!opposingCharacterId) throw new Error("Opposing character not found");
       
       const opposingPool = battle.bettingPools.find(p => p.characterId === opposingCharacterId);
       const opposingLiquidityExists = opposingPool && new BigNumber(opposingPool.totalVolume.toString()).isGreaterThan(0);
 
-      const poolContribution = amount.minus(amount.times(F_PLATFORM));
-      let betStatus: BetStatus;
+      const poolContribution = amount.minus(amount.times(F_HOUSE));
+      let betStatus: BetStatus = BetStatus.PENDING_LIQUIDITY;
       
       if (opposingLiquidityExists) {
-        betStatus = 'ACTIVE';
-        const pendingBetsToActivate = await tx.bet.findMany({
-          where: { battleId, status: 'PENDING_LIQUIDITY' }
+        betStatus = BetStatus.PENDING; // Use PENDING for active, unsettled bets
+        // Activate all previously pending bets for this battle
+        await tx.bet.updateMany({
+          where: { battleId, status: BetStatus.PENDING_LIQUIDITY },
+          data: { status: BetStatus.PENDING },
         });
-
-        if (pendingBetsToActivate.length > 0) {
-          await tx.bet.updateMany({
-            where: { id: { in: pendingBetsToActivate.map(b => b.id) } },
-            data: { status: 'ACTIVE' },
-          });
-        }
       } else {
-        if (amount.isGreaterThan(1000)) throw new Error("First bet cannot exceed 1000 points.");
-        betStatus = 'PENDING_LIQUIDITY';
+        // This is the first bet on this side of the market
+        if (amount.isGreaterThan(1000)) throw new Error("First bet on a market side cannot exceed 1000 points.");
+        betStatus = BetStatus.PENDING_LIQUIDITY;
       }
 
+      // 3. Execute database operations
       await tx.user.update({
         where: { id: userId },
         data: { balance: { decrement: amount.toString() } },
@@ -100,65 +96,72 @@ export class MvpBettingManager {
       });
 
       if (!battle) throw new Error("Battle not found for settlement.");
-      if (battle.status !== 'PENDING') throw new Error("Battle has already been settled.");
+      if (battle.status !== BattleStatus.ACTIVE) throw new Error("Battle is not active or has already been settled.");
 
       // 1. Refund PENDING_LIQUIDITY bets
-      const pendingBets = battle.bets.filter(b => b.status === 'PENDING_LIQUIDITY');
+      const pendingBets = battle.bets.filter(b => b.status === BetStatus.PENDING_LIQUIDITY);
       for (const bet of pendingBets) {
         const betAmount = new BigNumber(bet.amount.toString());
         const refundAmount = betAmount.minus(betAmount.times(F_PLATFORM_IMMEDIATE));
-        const contributionToRemove = betAmount.minus(betAmount.times(F_PLATFORM));
-
+        
         await tx.user.update({
           where: { id: bet.userId },
           data: { balance: { increment: refundAmount.toString() } },
         });
 
+        const contributionToRemove = betAmount.minus(betAmount.times(F_HOUSE));
         await tx.bettingPool.update({
             where: { battleId_characterId: { battleId, characterId: bet.characterId } },
             data: { totalVolume: { decrement: contributionToRemove.toString() } },
         });
 
-        await tx.bet.update({ where: { id: bet.id }, data: { status: 'CANCELLED' } });
+        await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.CANCELLED } });
       }
 
-      // 2. Payout ACTIVE bets
-      const activeBets = battle.bets.filter(b => b.status === 'ACTIVE');
-      if (activeBets.length > 0) {
-        const totalPot = battle.bettingPools.reduce(
-          (sum, pool) => sum.plus(new BigNumber(pool.totalVolume.toString())),
-          new BigNumber(0)
-        );
+      // 2. Payout PENDING bets
+      const activeBets = battle.bets.filter(b => b.status === BetStatus.PENDING);
+      const winningBets = activeBets.filter(b => b.characterId === winningCharacterId);
+      const losingBets = activeBets.filter(b => b.characterId !== winningCharacterId);
+      
+      if (winningBets.length > 0 && losingBets.length > 0) {
+        const totalLosingPool = battle.bettingPools
+          .filter(p => p.characterId !== winningCharacterId)
+          .reduce((sum, pool) => sum.plus(new BigNumber(pool.totalVolume.toString())), new BigNumber(0));
 
-        const winningBets = activeBets.filter(b => b.characterId === winningCharacterId);
-        const losingBets = activeBets.filter(b => b.characterId !== winningCharacterId);
+        const totalWageredByWinners = winningBets
+          .reduce((sum, bet) => sum.plus(new BigNumber(bet.amount.toString())), new BigNumber(0));
         
-        const totalWageredOnWinner = winningBets.reduce(
-          (sum, bet) => sum.plus(new BigNumber(bet.amount.toString())),
-          new BigNumber(0)
-        );
-
-        if (totalWageredOnWinner.isGreaterThan(0)) {
+        if (totalWageredByWinners.isGreaterThan(0)) {
             for (const bet of winningBets) {
                 const betAmount = new BigNumber(bet.amount.toString());
-                const payoutRatio = betAmount.dividedBy(totalWageredOnWinner);
-                const payoutAmount = payoutRatio.times(totalPot);
+                const proRataShare = betAmount.dividedBy(totalWageredByWinners);
+                const winnings = proRataShare.times(totalLosingPool);
+                const payoutAmount = betAmount.plus(winnings); // Stake back + share of loser's pool
 
                 await tx.user.update({
                     where: { id: bet.userId },
                     data: { balance: { increment: payoutAmount.toString() } },
                 });
-                await tx.bet.update({ where: { id: bet.id }, data: { status: 'WON' } });
+                await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.WON } });
             }
         }
-
-        for (const bet of losingBets) {
-          await tx.bet.update({ where: { id: bet.id }, data: { status: 'LOST' } });
+      } else if (winningBets.length > 0 && losingBets.length === 0) {
+        // Everyone bet on the winner, refund their stake (fees were already taken)
+        for (const bet of winningBets) {
+            await tx.user.update({
+              where: { id: bet.userId },
+              data: { balance: { increment: bet.amount.toString() } },
+            });
+            await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.WON } });
         }
       }
 
+      for (const bet of losingBets) {
+        await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.LOST } });
+      }
+
       // 3. Mark battle as complete
-      await tx.battle.update({ where: { id: battleId }, data: { status: 'COMPLETED', winnerId: winningCharacterId } });
+      await tx.battle.update({ where: { id: battleId }, data: { status: BattleStatus.FINISHED, winnerId: winningCharacterId } });
     });
   }
 } 

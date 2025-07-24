@@ -69,13 +69,21 @@ export class BettingManager {
       pools.set(p.id, pool ? new BigNumber(pool.totalVolume.toString()) : new BigNumber(0));
     });
 
-    if (battle.type === BattleType.TEAM_BATTLE) {
-      const [id1, id2] = Array.from(pools.keys());
-      const { odds1, odds2 } = MarketMakingEngine.calculateTeamBattleOdds(
-        pools.get(id1)!,
-        pools.get(id2)!
+    if (battle.type === 'TEAM_BATTLE') {
+      if (battle.participants.length !== 2) throw new Error("Team battle must have exactly 2 participants");
+      
+      const pool_a = battle.bettingPools.find(p => p.characterId === battle.participants[0].id)?.totalVolume ?? 0;
+      const pool_b = battle.bettingPools.find(p => p.characterId === battle.participants[1].id)?.totalVolume ?? 0;
+
+      const { odds_a, odds_b } = MarketMakingEngine.calculateTeamBattleOdds(
+        new BigNumber(pool_a.toString()),
+        new BigNumber(pool_b.toString())
       );
-      return new Map([[id1, odds1], [id2, odds2]]);
+
+      const oddsMap = new Map<string, BigNumber>();
+      oddsMap.set(battle.participants[0].id, odds_a);
+      oddsMap.set(battle.participants[1].id, odds_b);
+      return oddsMap;
     } else {
       return MarketMakingEngine.calculateBattleRoyaleOdds(pools);
     }

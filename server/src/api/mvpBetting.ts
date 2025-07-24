@@ -39,4 +39,22 @@ router.post('/battles/:battleId/bet', async (req, res) => {
   }
 });
 
+// POST /api/mvp/battles/:battleId/settle (For testing purposes)
+router.post('/battles/:battleId/settle', async (req, res) => {
+  try {
+    const { battleId } = req.params;
+    const { winningCharacterId } = req.body;
+
+    if (!winningCharacterId) {
+      return res.status(400).json({ error: 'Missing required field: winningCharacterId' });
+    }
+
+    await MvpBettingManager.settleBattle(battleId, winningCharacterId);
+    
+    res.status(200).json({ message: `Battle ${battleId} settled successfully.` });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
+  }
+});
+
 export default router; 

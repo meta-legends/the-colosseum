@@ -12,42 +12,36 @@ export class MarketMakingEngine {
    * @param v2 - Total volume bet on Team 2.
    * @returns The calculated odds for Team 1 and Team 2.
    */
-  static calculateTeamBattleOdds(
-    v1: BigNumber,
-    v2: BigNumber
-  ): { odds1: BigNumber; odds2: BigNumber } {
-    const v_total = v1.plus(v2);
+  static calculateTeamBattleOdds(v_a: BigNumber, v_b: BigNumber): { odds_a: BigNumber, odds_b: BigNumber, p_a: BigNumber, p_b: BigNumber } {
+    const v_total = v_a.plus(v_b);
 
-    // Step 0: Handle initial conditions
-    if (v_total.isZero()) {
-      const initialProb = new BigNumber('0.5').times(new BigNumber(1).minus(F_HOUSE));
-      const initialOdds = new BigNumber(1).dividedBy(initialProb);
-      return {
-        odds1: BigNumber.min(MAX_ODDS_TEAM_BATTLE, BigNumber.max(MIN_ODDS, initialOdds)),
-        odds2: BigNumber.min(MAX_ODDS_TEAM_BATTLE, BigNumber.max(MIN_ODDS, initialOdds)),
-      };
-    }
+    // s is a smoothing factor. A larger s makes the odds less sensitive to the ratio of bets.
+    // We adjust it based on total volume to make the market more volatile in early stages.
+    // By reducing the divisor from 50 to 20, the smoothing effect diminishes more quickly,
+    // making the odds more volatile and reactive to betting volume.
+    const s = v_total.dividedBy(20);
 
-    // Step 1: Base Probability Calculation
-    const p1_base = v2.dividedBy(v_total);
-    const p2_base = v1.dividedBy(v_total);
+    const p_a = v_b.plus(s).dividedBy(v_a.plus(v_b).plus(s.times(2)));
+    const p_b = v_a.plus(s).dividedBy(v_a.plus(v_b).plus(s.times(2)));
+
+    // Calculate initial odds based on these smoothed probabilities
+    let odds_a = new BigNumber(1).dividedBy(p_a);
+    let odds_b = new BigNumber(1).dividedBy(p_b);
 
     // Step 2: Market Making Adjustment (Inverted Smoothing)
     // By reducing the divisor from 50 to 20, the smoothing effect diminishes more quickly,
     // making the odds more volatile and reactive to betting volume.
-    const s = BigNumber.max(0.05, new BigNumber(0.3).minus(v_total.dividedBy(20)));
-    
-    const p1_adj = p1_base.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
-    const p2_adj = p2_base.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
+    const p1_adj = p_a.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
+    const p2_adj = p_b.times(new BigNumber(1).minus(s)).plus(new BigNumber(0.5).times(s));
 
     // Step 3 & 4: Liquidity-Constrained Odds & House Edge
-    const max_safe_odds1 = v1.isZero()
+    const max_safe_odds1 = v_a.isZero()
       ? MAX_ODDS_TEAM_BATTLE
-      : v2.times(SAFETY_BUFFER).dividedBy(v1.times(new BigNumber(1).minus(F_HOUSE)));
+      : v_b.times(SAFETY_BUFFER).dividedBy(v_a.times(new BigNumber(1).minus(F_HOUSE)));
     
-    const max_safe_odds2 = v2.isZero()
+    const max_safe_odds2 = v_b.isZero()
       ? MAX_ODDS_TEAM_BATTLE
-      : v1.times(SAFETY_BUFFER).dividedBy(v2.times(new BigNumber(1).minus(F_HOUSE)));
+      : v_a.times(SAFETY_BUFFER).dividedBy(v_b.times(new BigNumber(1).minus(F_HOUSE)));
 
     // Step 5: Convert to Decimal Odds
     const p1_final = p1_adj.times(new BigNumber(1).minus(F_HOUSE));
@@ -63,7 +57,7 @@ export class MarketMakingEngine {
     final_odds1 = BigNumber.min(MAX_ODDS_TEAM_BATTLE, BigNumber.max(MIN_ODDS, final_odds1));
     final_odds2 = BigNumber.min(MAX_ODDS_TEAM_BATTLE, BigNumber.max(MIN_ODDS, final_odds2));
 
-    return { odds1: final_odds1, odds2: final_odds2 };
+    return { odds_a: final_odds1, odds_b: final_odds2, p_a: p_a, p_b: p_b };
   }
 
   /**
