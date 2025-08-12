@@ -386,3 +386,80 @@ textarea::placeholder {
   white-space: nowrap;
   border: 0;
 }
+
+/* Wallet Controls */
+.wallet-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-xs) 0;
+}
+
+.network-display {
+  font-size: var(--font-size-xs);
+  color: var(--accent-orange);
+  font-weight: var(--font-weight-medium);
+  font-family: monospace;
+}
+
+.network-switch-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--dark-border);
+  border-radius: var(--radius-sm);
+  background: var(--dark-bg);
+  color: var(--dark-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.network-switch-btn:hover {
+  background: var(--dark-border);
+  border-color: var(--accent-orange);
+}
+
+.network-options {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--dark-bg);
+  border: 1px solid var(--dark-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  min-width: 120px;
+  margin-top: var(--spacing-xs);
+}
+
+.network-options button {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: none;
+  background: none;
+  color: var(--dark-text);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--font-size-xs);
+  transition: background-color var(--transition-fast);
+}
+
+.network-options button:hover {
+  background: var(--dark-border);
+  color: var(--accent-orange);
+}
+
+.network-options button:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.network-options button:last-child {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+#userInfo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}

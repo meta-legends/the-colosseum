@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { type User } from "@supabase/supabase-js";
 import { trackPresence, untrackPresence } from './chat';
 import { eventBus } from './events';
+import walletConnector from './utils/walletConnector';
 
 // This will hold the authenticated user data globally
 export let authData: User | { id: string; balance: number | string; walletAddress: string; } | null = null;
@@ -35,6 +36,7 @@ function updateUI(user: User | { id: string; balance: number | string; walletAdd
   const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
   const userAddress = document.querySelector<HTMLSpanElement>('#userAddress');
   const battlePoints = document.querySelector<HTMLSpanElement>('#battlePoints');
+  const networkDisplay = document.querySelector<HTMLSpanElement>('#networkDisplay');
 
   if (user && connectWalletBtn && userInfo && userAddress && battlePoints && testLoginBtn) {
     connectWalletBtn.style.display = 'none';
@@ -51,6 +53,12 @@ function updateUI(user: User | { id: string; balance: number | string; walletAdd
       battlePoints.textContent = "0.00";
     }
 
+    // Update network display if wallet is connected
+    if (walletConnector.isConnected() && networkDisplay) {
+      const chainId = walletConnector.getCurrentChainId();
+      networkDisplay.textContent = getNetworkName(chainId || '');
+    }
+
   } else if (connectWalletBtn && userInfo && testLoginBtn) {
     connectWalletBtn.style.display = 'block';
     testLoginBtn.style.display = 'block';
@@ -63,54 +71,52 @@ function shortenAddress(address: string, chars = 4) {
 }
 
 export async function handleConnectWallet(): Promise<User | null> {
-  if (typeof window.ethereum !== 'undefined') {
-    try {
-      connectWalletBtn.textContent = 'Connecting...';
-      connectWalletBtn.disabled = true;
-      connectWalletBtn.classList.add('loading');
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await provider.send('eth_requestAccounts', []);
-      const address = accounts[0];
-
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: address }),
-      });
-
-      if (response.ok) {
-        const { user, session } = await response.json();
-        
-        if (!user || !session) {
-          throw new Error("Login did not return a user and session.");
-        }
-        
-        await supabase.auth.setSession(session);
-        setAuthData(user);
-        console.log('Wallet connected and session set:', user.email);
-        return user;
-      } else {
-        const errorData = await response.json();
-        showError(errorData.error || 'Failed to login to server');
-      }
-    } catch (error) {
-      console.error('Error connecting to wallet:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      if (errorMessage.includes('User rejected')) {
-        showError('Connection cancelled by user');
-      } else {
-        showError(errorMessage);
-      }
-    } finally {
-      connectWalletBtn.textContent = 'Connect Wallet';
-      connectWalletBtn.disabled = false;
-      connectWalletBtn.classList.remove('loading');
-    }
-  } else {
+  if (!walletConnector.isMetaMaskInstalled()) {
     showError('Please install MetaMask to continue');
+    return null;
   }
-  return null;
+
+  try {
+    connectWalletBtn.textContent = 'Connecting...';
+    connectWalletBtn.disabled = true;
+    connectWalletBtn.classList.add('loading');
+
+    // Use the enhanced wallet connector
+    const connection = await walletConnector.connectWallet();
+    
+    console.log('Wallet connected:', connection.account);
+    console.log('Network:', connection.chainId);
+    
+    // The walletConnector already handles server authentication in its connectWallet method
+    // Just update the UI to reflect the successful connection
+    const currentAccount = walletConnector.getCurrentAccount();
+    if (currentAccount) {
+      // Create a user object for UI consistency
+      const user = {
+        id: currentAccount,
+        email: currentAccount,
+        walletAddress: currentAccount,
+        balance: 0
+      };
+      setAuthData(user);
+      return user as any;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error connecting to wallet:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    if (errorMessage.includes('User rejected')) {
+      showError('Connection cancelled by user');
+    } else {
+      showError(errorMessage);
+    }
+    return null;
+  } finally {
+    connectWalletBtn.textContent = 'Connect Wallet';
+    connectWalletBtn.disabled = false;
+    connectWalletBtn.classList.remove('loading');
+  }
 }
 
 function showError(message: string) {
@@ -126,13 +132,77 @@ function showError(message: string) {
 }
 
 export async function checkWalletConnection(): Promise<void> {
+  // First check if wallet is already connected
+  if (walletConnector.isConnected()) {
+    const account = walletConnector.getCurrentAccount();
+    const chainId = walletConnector.getCurrentChainId();
+    console.log('Found existing wallet connection:', account, 'on network:', chainId);
+    
+    // Update UI with existing connection
+    const user = {
+      id: account || '',
+      email: account || '',
+      walletAddress: account || '',
+      balance: 0
+    };
+    setAuthData(user);
+    return;
+  }
+
+  // Then check for Supabase session
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     console.log('Found active Supabase session.');
     setAuthData(session.user);
   } else {
-     console.log('No active Supabase session found.');
+     console.log('No active connection found.');
   }
+}
+
+// Setup wallet event listeners
+export function setupWalletEventListeners() {
+  // Account changed handler
+  walletConnector.onAccountChanged = (newAccount: string) => {
+    console.log('Account changed to:', newAccount);
+    const user = {
+      id: newAccount,
+      email: newAccount,
+      walletAddress: newAccount,
+      balance: 0
+    };
+    setAuthData(user);
+    showError(`Switched to account: ${shortenAddress(newAccount)}`);
+  };
+
+  // Network changed handler  
+  walletConnector.onNetworkChanged = (newChainId: string) => {
+    console.log('Network changed to:', newChainId);
+    const networkDisplay = document.querySelector<HTMLSpanElement>('#networkDisplay');
+    if (networkDisplay) {
+      networkDisplay.textContent = getNetworkName(newChainId);
+    }
+    showError(`Switched to network: ${getNetworkName(newChainId)}`);
+  };
+
+  // Disconnection handler
+  walletConnector.onDisconnected = () => {
+    console.log('Wallet disconnected');
+    setAuthData(null);
+    showError('Wallet disconnected');
+  };
+}
+
+// Helper function to get network name
+function getNetworkName(chainId: string): string {
+  const networks: Record<string, string> = {
+    '0x1': 'Ethereum Mainnet',
+    '0x89': 'Polygon',
+    '0xa4b1': 'Arbitrum One',
+    '0x38': 'BSC',
+    '0xaa36a7': 'Sepolia Testnet',
+    '0x13881': 'Mumbai Testnet'
+  };
+  return networks[chainId] || `Unknown (${chainId})`;
 }
 
 // Centralized auth state listener
@@ -147,14 +217,3 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Dummy functions for now
-async function connectWallet(): Promise<{ id: string, walletAddress: string, balance: number } | null> {
-  // In a real app, this would use ethers or web3modal
-  console.log("Connecting wallet...");
-  return null; // Placeholder
-}
-
-async function getConnectedWallet(): Promise<{ id: string, walletAddress: string, balance: number } | null> {
-  console.log("Checking for connected wallet...");
-  return null;
-}

@@ -1,5 +1,5 @@
 import './style.css'
-import { handleConnectWallet, checkWalletConnection, setAuthData } from './auth';
+import { handleConnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
 import { initChat, sendMessageWithRateLimit } from './chat';
 import { initializePlayer } from './video';
 import { type User } from "@supabase/supabase-js";
@@ -9,7 +9,10 @@ console.log('Colosseum frontend script is running.');
 
 // Initialize the application
 async function initializeApp() {
-  // Check for existing wallet connection first
+  // Setup wallet event listeners first
+  setupWalletEventListeners();
+  
+  // Check for existing wallet connection
   await checkWalletConnection();
   
   // Set up connect wallet button
@@ -19,6 +22,9 @@ async function initializeApp() {
       await handleConnectWallet();
     });
   }
+
+  // Set up network switching functionality
+  setupNetworkSwitching();
 
   // Set up test login button
   const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
@@ -162,8 +168,64 @@ if (document.readyState === 'loading') {
   initializeApp();
 }
 
+// Network switching functionality
+function setupNetworkSwitching() {
+  const switchNetworkBtn = document.querySelector<HTMLButtonElement>('#switchNetworkBtn');
+  const networkOptions = document.querySelector<HTMLDivElement>('#networkOptions');
+  
+  if (switchNetworkBtn && networkOptions) {
+    // Toggle network options dropdown
+    switchNetworkBtn.addEventListener('click', () => {
+      const isVisible = networkOptions.style.display !== 'none';
+      networkOptions.style.display = isVisible ? 'none' : 'block';
+    });
+
+    // Handle network selection
+    networkOptions.addEventListener('click', async (e) => {
+      const target = e.target as HTMLButtonElement;
+      if (target.dataset.chain) {
+        const chainId = target.dataset.chain;
+        await switchToNetwork(chainId);
+        networkOptions.style.display = 'none';
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!switchNetworkBtn.contains(e.target as Node) && 
+          !networkOptions.contains(e.target as Node)) {
+        networkOptions.style.display = 'none';
+      }
+    });
+  }
+}
+
+// Switch to a specific network
+async function switchToNetwork(chainId: string): Promise<void> {
+  try {
+    const { default: walletConnector } = await import('./utils/walletConnector');
+    await walletConnector.switchToNetwork(chainId);
+    console.log(`Switched to network: ${chainId}`);
+  } catch (error) {
+    console.error('Failed to switch network:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to switch network';
+    
+    // Show error to user
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'status-indicator error';
+    errorDiv.textContent = errorMessage;
+    document.body.appendChild(errorDiv);
+    setTimeout(() => {
+      if (errorDiv.parentNode) {
+        errorDiv.parentNode.removeChild(errorDiv);
+      }
+    }, 5000);
+  }
+}
+
 // Export for debugging
 (window as any).colosseumApp = {
   initializeApp,
   updateViewerCount,
+  switchToNetwork,
 };

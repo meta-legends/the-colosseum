@@ -21,6 +21,16 @@
         <button id="connectWalletBtn">Connect Wallet</button>
         <div id="userInfo" style="display: none;">
           <span id="userAddress"></span>
+          <div id="walletControls" class="wallet-controls">
+            <span id="networkDisplay" class="network-display">Unknown Network</span>
+            <button id="switchNetworkBtn" class="network-switch-btn">Switch Network</button>
+            <div id="networkOptions" class="network-options" style="display: none;">
+              <button data-chain="0x1">Ethereum</button>
+              <button data-chain="0x89">Polygon</button>
+              <button data-chain="0xa4b1">Arbitrum</button>
+              <button data-chain="0xaa36a7">Sepolia</button>
+            </div>
+          </div>
           <div class="user-avatar"></div>
         </div>
       </div>
