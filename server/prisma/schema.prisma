@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,31 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum BattleType {
-  TEAM_BATTLE
-  BATTLE_ROYALE
-}
-
-enum BattleStatus {
-  PENDING
-  ACTIVE
-  FINISHED
-  CANCELLED
-}
-
-enum BettingType {
-  AMM
-  PARIMUTUEL
-}
-
-enum BetStatus {
-  PENDING
-  PENDING_LIQUIDITY // For parimutuel bets waiting for an opposing bet
-  WON
-  LOST
-  CANCELLED
-}
-
 model User {
   id            String        @id @default(cuid())
   walletAddress String        @unique
@@ -45,36 +14,36 @@ model User {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   bets          Bet[]
-  chatMessages  ChatMessage[]
   characters    Character[]
+  chatMessages  ChatMessage[]
 }
 
 model Character {
-  id            String        @id @default(cuid())
-  name          String        @unique
-  ownerId       String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  owner         User          @relation(fields: [ownerId], references: [id])
-  bets          Bet[]
-  battles       Battle[]      @relation("BattleParticipants")
-  bettingPools  BettingPool[]
+  id           String        @id @default(cuid())
+  name         String        @unique
+  ownerId      String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  bets         Bet[]
+  bettingPools BettingPool[]
+  owner        User          @relation(fields: [ownerId], references: [id])
+  battles      Battle[]      @relation("BattleParticipants")
 }
 
 model Battle {
   id              String           @id @default(cuid())
   title           String
   type            BattleType
-  bettingType     BettingType      @default(PARIMUTUEL)
   startTime       DateTime
   status          BattleStatus     @default(PENDING)
   winnerId        String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  bettingType     BettingType      @default(PARIMUTUEL)
   bets            Bet[]
-  participants    Character[]      @relation("BattleParticipants")
   bettingPools    BettingPool[]
   marketSnapshots MarketSnapshot[]
+  participants    Character[]      @relation("BattleParticipants")
 
   @@index([status])
 }
@@ -88,9 +57,9 @@ model Bet {
   odds        Decimal   @db.Decimal(10, 4)
   status      BetStatus @default(PENDING)
   createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id])
   battle      Battle    @relation(fields: [battleId], references: [id])
   character   Character @relation(fields: [characterId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([battleId])
@@ -126,4 +95,29 @@ model ChatMessage {
   message   String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+}
+
+enum BattleType {
+  TEAM_BATTLE
+  BATTLE_ROYALE
+}
+
+enum BattleStatus {
+  PENDING
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum BettingType {
+  AMM
+  PARIMUTUEL
+}
+
+enum BetStatus {
+  PENDING
+  WON
+  LOST
+  CANCELLED
+  PENDING_LIQUIDITY
 }
