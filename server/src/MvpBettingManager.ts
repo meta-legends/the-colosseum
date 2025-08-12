@@ -122,37 +122,43 @@ export class MvpBettingManager {
       const activeBets = battle.bets.filter(b => b.status === BetStatus.PENDING);
       const winningBets = activeBets.filter(b => b.characterId === winningCharacterId);
       const losingBets = activeBets.filter(b => b.characterId !== winningCharacterId);
-      
+
       if (winningBets.length > 0 && losingBets.length > 0) {
-        const totalLosingPool = battle.bettingPools
+        // Pools are tracked net of fees. Use net pools for pro‑rata and return only net stakes.
+        const totalLosingNetPool = battle.bettingPools
           .filter(p => p.characterId !== winningCharacterId)
           .reduce((sum, pool) => sum.plus(new BigNumber(pool.totalVolume.toString())), new BigNumber(0));
 
-        const totalWageredByWinners = winningBets
-          .reduce((sum, bet) => sum.plus(new BigNumber(bet.amount.toString())), new BigNumber(0));
-        
-        if (totalWageredByWinners.isGreaterThan(0)) {
-            for (const bet of winningBets) {
-                const betAmount = new BigNumber(bet.amount.toString());
-                const proRataShare = betAmount.dividedBy(totalWageredByWinners);
-                const winnings = proRataShare.times(totalLosingPool);
-                const payoutAmount = betAmount.plus(winnings); // Stake back + share of loser's pool
+        const winningPool = battle.bettingPools.find(p => p.characterId === winningCharacterId);
+        const totalWinningNetPool = winningPool
+          ? new BigNumber(winningPool.totalVolume.toString())
+          : new BigNumber(0);
 
-                await tx.user.update({
-                    where: { id: bet.userId },
-                    data: { balance: { increment: payoutAmount.toString() } },
-                });
-                await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.WON } });
-            }
-        }
-      } else if (winningBets.length > 0 && losingBets.length === 0) {
-        // Everyone bet on the winner, refund their stake (fees were already taken)
-        for (const bet of winningBets) {
+        if (totalWinningNetPool.isGreaterThan(0)) {
+          for (const bet of winningBets) {
+            const grossBetAmount = new BigNumber(bet.amount.toString());
+            const netBetAmount = grossBetAmount.minus(grossBetAmount.times(F_HOUSE));
+            const proRataShare = netBetAmount.dividedBy(totalWinningNetPool);
+            const winningsFromLosers = proRataShare.times(totalLosingNetPool);
+            const payoutAmount = netBetAmount.plus(winningsFromLosers);
+
             await tx.user.update({
               where: { id: bet.userId },
-              data: { balance: { increment: bet.amount.toString() } },
+              data: { balance: { increment: payoutAmount.toString() } },
             });
             await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.WON } });
+          }
+        }
+      } else if (winningBets.length > 0 && losingBets.length === 0) {
+        // Everyone bet on the winner: return only net stakes (fees are not returned)
+        for (const bet of winningBets) {
+          const grossBetAmount = new BigNumber(bet.amount.toString());
+          const netBetAmount = grossBetAmount.minus(grossBetAmount.times(F_HOUSE));
+          await tx.user.update({
+            where: { id: bet.userId },
+            data: { balance: { increment: netBetAmount.toString() } },
+          });
+          await tx.bet.update({ where: { id: bet.id }, data: { status: BetStatus.WON } });
         }
       }
 

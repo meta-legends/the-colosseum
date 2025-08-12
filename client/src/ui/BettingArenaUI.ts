@@ -36,6 +36,11 @@ export class BettingArenaUI {
   private selectedCharacterId: string | null = null;
   private confirmedBets: BetTicket[] = [];
 
+  // Keep client-side copy of house fee to display net contribution consistently with server
+  // Must match server constant F_HOUSE (currently 5.45%)
+  private static readonly HOUSE_FEE = 0.0545;
+  private static readonly NET_MULTIPLIER = 1 - BettingArenaUI.HOUSE_FEE;
+
   constructor(containerId: string) {
     const element = document.getElementById(containerId);
     if (!element) {
@@ -67,12 +72,20 @@ export class BettingArenaUI {
         const response = await fetch(`/api/battles/${this.battle.id}/bets?userId=${user.id}`);
         if (response.ok) {
           const bets = await response.json();
-          this.confirmedBets = bets.map((bet: any) => ({
-            characterName: bet.character.name,
-            amount: parseFloat(bet.amount),
-            odds: parseFloat(bet.odds),
-            payout: parseFloat(bet.amount) * parseFloat(bet.odds),
-          }));
+          this.confirmedBets = bets.map((bet: any) => {
+            const rawAmount = parseFloat(bet.amount);
+            const isParimutuel = this.battle?.bettingType === 'PARIMUTUEL';
+            const amountForDisplay = isParimutuel
+              ? rawAmount * BettingArenaUI.NET_MULTIPLIER
+              : rawAmount;
+            return {
+              characterName: bet.character.name,
+              amount: amountForDisplay,
+              // For parimutuel bets we render as pool bet, not fixed odds
+              odds: isParimutuel ? 0 : parseFloat(bet.odds),
+              payout: isParimutuel ? amountForDisplay : rawAmount * parseFloat(bet.odds),
+            } as BetTicket;
+          });
           this.render();
         }
       } catch (error) {
@@ -172,14 +185,16 @@ export class BettingArenaUI {
         if (response.ok) {
             const character = this.battle.participants.find(p => p.id === this.selectedCharacterId);
             if (this.battle.bettingType === 'PARIMUTUEL') {
+                // Use net contribution (after fees) for pool math and ticket display
+                const netAmount = amount * BettingArenaUI.NET_MULTIPLIER;
                 const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum + vol, 0);
                 const myPool = this.pools.get(this.selectedCharacterId!) || 0;
                 const opposingPool = totalPool - myPool;
-                const myShare = (amount / (myPool + amount));
-                const payout = amount + (opposingPool * myShare);
+                const myShare = (netAmount / (myPool + netAmount));
+                const payout = netAmount + (opposingPool * myShare);
                 this.confirmedBets.push({
                   characterName: character?.name || 'Unknown',
-                  amount: amount,
+                  amount: netAmount,
                   odds: 0, // Parimutuel doesn't have fixed odds
                   payout: payout,
                 });
@@ -415,11 +430,13 @@ export class BettingArenaUI {
       const totalPool = Array.from(this.pools.values()).reduce((sum, vol) => sum.plus(new BigNumber(vol)), new BigNumber(0));
       const opposingPool = totalPool.minus(myPool);
       
-      if (myPool.plus(amount).isZero()) return '<p>Payout: N/A</p>';
+      // Net contribution after fees must be used for pool share
+      const netAmount = amount.times(BettingArenaUI.NET_MULTIPLIER);
+      if (myPool.plus(netAmount).isZero()) return '<p>Payout: N/A</p>';
       
-      const myShare = amount.dividedBy(myPool.plus(amount));
+      const myShare = netAmount.dividedBy(myPool.plus(netAmount));
       const estimatedWinnings = myShare.times(opposingPool);
-      const estimatedPayout = amount.plus(estimatedWinnings);
+      const estimatedPayout = netAmount.plus(estimatedWinnings);
       
       return `<p>Est. Payout: ${estimatedPayout.toFixed(2)} Pts</p>`;
     } else { // AMM
