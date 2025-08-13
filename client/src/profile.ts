@@ -13,6 +13,7 @@ export interface UserProfile {
 }
 
 let profileSetupCallback: ((data: ProfileSetupData) => void) | null = null;
+let currentWalletAddress: string = '';
 
 // Initialize profile setup modal
 export function initProfileSetup() {
@@ -45,7 +46,7 @@ export function initProfileSetup() {
     }
 
     try {
-      const response = await fetch(`/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
+      const response = await fetch(`http://localhost:3001/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -118,7 +119,7 @@ export function initProfileSetup() {
       try {
         await profileSetupCallback({
           username: username.toLowerCase(),
-          walletAddress: getCurrentWalletAddress()
+          walletAddress: currentWalletAddress
         });
         closeProfileSetup();
       } catch (error) {
@@ -153,12 +154,21 @@ export function initProfileSetup() {
 
 // Show profile setup modal
 export function showProfileSetup(walletAddress: string, callback: (data: ProfileSetupData) => void) {
+  console.log('showProfileSetup called with wallet address:', walletAddress);
   profileSetupCallback = callback;
+  currentWalletAddress = walletAddress;
   
   const modal = document.getElementById('profileSetupModal') as HTMLElement;
   const usernameInput = document.getElementById('usernameInput') as HTMLInputElement;
   const validationDiv = document.getElementById('usernameValidation') as HTMLElement;
   const saveBtn = document.getElementById('saveProfileBtn') as HTMLButtonElement;
+  
+  if (!modal) {
+    console.error('Profile setup modal not found in DOM');
+    return;
+  }
+  
+  console.log('Modal element found, setting up form...');
   
   // Reset form
   usernameInput.value = '';
@@ -169,10 +179,12 @@ export function showProfileSetup(walletAddress: string, callback: (data: Profile
   
   // Show modal
   modal.style.display = 'flex';
+  console.log('Modal display set to flex, modal should now be visible');
   
   // Focus input
   setTimeout(() => {
     usernameInput.focus();
+    console.log('Input field focused');
   }, 100);
 }
 
@@ -181,18 +193,12 @@ export function closeProfileSetup() {
   const modal = document.getElementById('profileSetupModal') as HTMLElement;
   modal.style.display = 'none';
   profileSetupCallback = null;
-}
-
-// Get current wallet address (helper function)
-function getCurrentWalletAddress(): string {
-  // This should be implemented to get the current wallet address
-  // For now, we'll try to get it from the global auth state
-  return (window as any).currentWalletAddress || '';
+  currentWalletAddress = '';
 }
 
 // API functions for profile management
 export async function updateUserProfile(walletAddress: string, username: string): Promise<UserProfile> {
-  const response = await fetch('/api/users/update-profile', {
+  const response = await fetch('http://localhost:3001/api/users/update-profile', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -212,7 +218,7 @@ export async function updateUserProfile(walletAddress: string, username: string)
 }
 
 export async function getUserProfile(walletAddress: string): Promise<UserProfile> {
-  const response = await fetch(`/api/users/profile/${encodeURIComponent(walletAddress)}`);
+  const response = await fetch(`http://localhost:3001/api/users/profile/${encodeURIComponent(walletAddress)}`);
   
   if (!response.ok) {
     const error = await response.json();
@@ -223,7 +229,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
 }
 
 export async function checkUsernameAvailability(username: string): Promise<{ available: boolean; username: string }> {
-  const response = await fetch(`/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
+  const response = await fetch(`http://localhost:3001/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
   
   if (!response.ok) {
     const error = await response.json();

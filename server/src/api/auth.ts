@@ -1,13 +1,26 @@
 import { Router, Request, Response } from 'express';
-import { supabase } from '../supabase';
+import { supabase, supabaseAdmin } from '../supabase';
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { verifyMessage } from 'ethers';
 
 const router = Router();
 
-// In-memory nonce store (address -> { nonce, expiresAt })
+// Scalable nonce storage with automatic cleanup
+// In production, consider using Redis with TTL for even better performance
 const nonceStore: Map<string, { nonce: string; expiresAt: number }> = new Map();
+const NONCE_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const NONCE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+// Cleanup expired nonces periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of nonceStore.entries()) {
+    if (now > value.expiresAt) {
+      nonceStore.delete(key);
+    }
+  }
+}, NONCE_CLEANUP_INTERVAL);
 
 // Helper to build the message that is signed by the wallet
 function buildSiweMessage(nonce: string): string {
@@ -97,19 +110,27 @@ router.post('/verify', async (req: Request, res: Response) => {
 
       // Insert profile row using the authenticated user context (RLS)
       const supabaseUrl = process.env.SUPABASE_URL as string;
-      const anonKey = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY) as string;
+      const anonKey = process.env.SUPABASE_ANON_KEY as string;
       const authed = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: `Bearer ${data.session.access_token}` } }
       });
+      
       // Ensure we have a profile row; insert if missing
       const { data: existingProfile } = await authed.from('User').select('id').eq('id', data.user.id).maybeSingle();
       if (!existingProfile) {
         const now = new Date().toISOString();
-        await authed.from('User').insert({ 
+        const { error: insertError } = await authed.from('User').insert({ 
           id: data.user.id, 
           walletAddress: normalized,
           updatedAt: now
-        }).throwOnError();
+        });
+        
+        if (insertError) {
+          console.error('Failed to create user profile:', insertError);
+          // Don't fail the auth, but log the error
+        } else {
+          console.log('User profile created successfully');
+        }
       }
     } else if (error) {
       return res.status(400).json({ error: error.message });

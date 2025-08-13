@@ -17,12 +17,16 @@ model User {
   bets          Bet[]
   characters    Character[]
   chatMessages  ChatMessage[]
+
+  @@index([walletAddress])
+  @@index([username])
+  @@index([createdAt])
 }
 
 model Character {
-  id           String        @id @default(cuid())
+  id           String        @id @default(uuid()) @db.Uuid
   name         String        @unique
-  ownerId      String
+  ownerId      String        @db.Uuid
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   bets         Bet[]
@@ -32,7 +36,7 @@ model Character {
 }
 
 model Battle {
-  id              String           @id @default(cuid())
+  id              String           @id @default(uuid()) @db.Uuid
   title           String
   type            BattleType
   startTime       DateTime
@@ -50,10 +54,10 @@ model Battle {
 }
 
 model Bet {
-  id          String    @id @default(cuid())
-  userId      String
-  battleId    String
-  characterId String
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  battleId    String    @db.Uuid
+  characterId String    @db.Uuid
   amount      Decimal   @db.Decimal(18, 6)
   odds        Decimal   @db.Decimal(10, 4)
   status      BetStatus @default(PENDING)
@@ -68,9 +72,9 @@ model Bet {
 }
 
 model BettingPool {
-  id          String    @id @default(cuid())
-  battleId    String
-  characterId String
+  id          String    @id @default(uuid()) @db.Uuid
+  battleId    String    @db.Uuid
+  characterId String    @db.Uuid
   totalVolume Decimal   @default(0) @db.Decimal(18, 6)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -81,8 +85,8 @@ model BettingPool {
 }
 
 model MarketSnapshot {
-  id        String   @id @default(cuid())
-  battleId  String
+  id        String   @id @default(uuid()) @db.Uuid
+  battleId  String   @db.Uuid
   odds      Json
   createdAt DateTime @default(now())
   battle    Battle   @relation(fields: [battleId], references: [id])
@@ -91,8 +95,8 @@ model MarketSnapshot {
 }
 
 model ChatMessage {
-  id        String   @id @default(cuid())
-  userId    String
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
   message   String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])

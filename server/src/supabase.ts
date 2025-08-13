@@ -26,3 +26,14 @@ if (!supabaseUrl || !supabaseServerKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseServerKey)
+
+// Export an admin client if service role key is available
+export const supabaseAdmin = supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    })
+  : null;

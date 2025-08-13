@@ -1,4 +1,8 @@
 import './style.css'
+import './components.css'
+import './layout.css'
+import './responsive.css'
+import './variables.css'
 import { handleConnectWallet, handleDisconnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
 import { initChat, sendMessageWithRateLimit, addSystemMessage } from './chat';
 import { initializePlayer } from './video';
@@ -23,7 +27,15 @@ async function initializeApp() {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
   if (connectWalletBtn) {
     connectWalletBtn.addEventListener('click', async () => {
-      await handleConnectWallet();
+      // Check if this is a profile setup button or wallet connection button
+      if (connectWalletBtn.textContent === 'Complete Profile Setup') {
+        // Import and trigger profile setup
+        const { triggerProfileSetup } = await import('./auth');
+        triggerProfileSetup();
+      } else {
+        // Normal wallet connection
+        await handleConnectWallet();
+      }
     });
   }
 
@@ -138,9 +150,9 @@ function sendChatMessage() {
         if (authData) {
           console.log('Sending chat message with authData:', authData);
           
-          // Check if this is a proper database user (not just wallet address)
-          if (typeof authData.id === 'string' && authData.id.length > 42) {
-            // This looks like a proper database ID (not a wallet address)
+          // Check if this is a proper database user (UUID format)
+          if (typeof authData.id === 'string' && authData.id.length === 36 && authData.id.includes('-')) {
+            // This looks like a proper UUID (not a wallet address)
             console.log('Using database userId for chat:', authData.id);
             sendMessageWithRateLimit(authData.id, message);
             chatInput.value = '';
