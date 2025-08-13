@@ -44,6 +44,27 @@ button:focus-visible {
   transform: translateY(0);
 }
 
+/* Disconnect Button */
+#disconnectWalletBtn {
+  background-color: var(--error);
+  color: white;
+  border: 2px solid var(--error);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-left: var(--spacing-sm);
+}
+
+#disconnectWalletBtn:hover {
+  background-color: transparent;
+  color: var(--error);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+#disconnectWalletBtn:active {
+  transform: translateY(0);
+}
+
 /* Secondary Button */
 .btn-secondary {
   background-color: transparent;
@@ -462,4 +483,120 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+}
+
+/* Profile Setup Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background-color: var(--beige);
+  border: 2px solid var(--brown);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content h2 {
+  color: var(--dark-brown);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--font-size-xl);
+  text-align: center;
+}
+
+.modal-content p {
+  color: var(--brown);
+  margin: 0 0 var(--spacing-lg) 0;
+  text-align: center;
+  font-size: var(--font-size-base);
+}
+
+.form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.form-group label {
+  display: block;
+  color: var(--dark-brown);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.form-group input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 2px solid var(--brown);
+  border-radius: var(--radius-md);
+  background-color: white;
+  color: var(--dark-brown);
+  font-size: var(--font-size-base);
+  transition: border-color var(--transition-fast);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent-orange);
+}
+
+.validation-message {
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  min-height: 20px;
+}
+
+.validation-message.error {
+  color: #dc3545;
+}
+
+.validation-message.success {
+  color: #28a745;
+}
+
+.validation-message.checking {
+  color: var(--brown);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--brown);
+  border: 2px solid var(--brown);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-secondary:hover {
+  background-color: var(--brown);
+  color: white;
+}
+
+.btn-primary:disabled {
+  background-color: #ccc;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.btn-primary:disabled:hover {
+  background-color: #ccc;
 }

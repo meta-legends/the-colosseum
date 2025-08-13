@@ -4,6 +4,7 @@ import { type User } from "@supabase/supabase-js";
 import { trackPresence, untrackPresence } from './chat';
 import { eventBus } from './events';
 import walletConnector from './utils/walletConnector';
+import { showProfileSetup, updateUserProfile, getUserProfile, type UserProfile } from './profile';
 
 // This will hold the authenticated user data globally
 export let authData: User | { id: string; balance: number | string; walletAddress: string; } | null = null;
@@ -16,7 +17,6 @@ export const setAuthData = (data: User | { id: string; balance: number | string;
 
 const userInfo = document.querySelector<HTMLDivElement>('#userInfo')!;
 const userAddressSpan = document.querySelector<HTMLSpanElement>('#userAddress')!;
-const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn')!;
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -30,7 +30,7 @@ function generateAvatarGradient(address: string): string {
   return `linear-gradient(45deg, hsl(${hue1}, 70%, 60%), hsl(${hue2}, 70%, 60%), hsl(${hue3}, 70%, 60%))`;
 }
 
-function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; } | null) {
+function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; username?: string | null; } | null) {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
   const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
   const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
@@ -38,13 +38,25 @@ function updateUI(user: User | { id: string; balance: number | string; walletAdd
   const battlePoints = document.querySelector<HTMLSpanElement>('#battlePoints');
   const networkDisplay = document.querySelector<HTMLSpanElement>('#networkDisplay');
 
+  console.log('UpdateUI called with user:', user ? { hasUsername: !!('username' in user ? user.username : null), walletAddress: 'walletAddress' in user ? user.walletAddress : user.email } : null);
+
   if (user && connectWalletBtn && userInfo && userAddress && battlePoints && testLoginBtn) {
+    // Hide login buttons and show user info
     connectWalletBtn.style.display = 'none';
     testLoginBtn.style.display = 'none';
     userInfo.style.display = 'flex';
     
+    // Show username if available, otherwise show shortened address
     const address = 'walletAddress' in user ? user.walletAddress : user.email || '';
-    userAddress.textContent = shortenAddress(address);
+    const username = 'username' in user ? user.username : null;
+    
+    if (username) {
+      userAddress.textContent = username;
+      userAddress.title = address; // Show full address on hover
+    } else {
+      userAddress.textContent = shortenAddress(address);
+      userAddress.title = address;
+    }
     
     if ('balance' in user && user.balance !== null && user.balance !== undefined) {
       const balanceValue = parseFloat(user.balance.toString());
@@ -60,9 +72,15 @@ function updateUI(user: User | { id: string; balance: number | string; walletAdd
     }
 
   } else if (connectWalletBtn && userInfo && testLoginBtn) {
+    // Show login buttons and hide user info
     connectWalletBtn.style.display = 'block';
     testLoginBtn.style.display = 'block';
     userInfo.style.display = 'none';
+    
+    // Make sure the connect button is enabled and has correct text
+    connectWalletBtn.disabled = false;
+    connectWalletBtn.textContent = 'Connect Wallet';
+    connectWalletBtn.classList.remove('loading');
   }
 }
 
@@ -73,6 +91,12 @@ function shortenAddress(address: string, chars = 4) {
 export async function handleConnectWallet(): Promise<User | null> {
   if (!walletConnector.isMetaMaskInstalled()) {
     showError('Please install MetaMask to continue');
+    return null;
+  }
+
+  const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+  if (!connectWalletBtn) {
+    console.error('Connect wallet button not found');
     return null;
   }
 
@@ -87,19 +111,76 @@ export async function handleConnectWallet(): Promise<User | null> {
     console.log('Wallet connected:', connection.account);
     console.log('Network:', connection.chainId);
     
+    // Store wallet address globally for profile functions
+    (window as any).currentWalletAddress = connection.account;
+    
     // The walletConnector already handles server authentication in its connectWallet method
-    // Just update the UI to reflect the successful connection
+    // Now check if user has a profile setup
     const currentAccount = walletConnector.getCurrentAccount();
     if (currentAccount) {
-      // Create a user object for UI consistency
-      const user = {
-        id: currentAccount,
-        email: currentAccount,
-        walletAddress: currentAccount,
-        balance: 0
-      };
-      setAuthData(user);
-      return user as any;
+      try {
+        // Try to get user profile
+        const profile = await getUserProfile(currentAccount);
+        
+        if (!profile.hasUsername) {
+          // Show profile setup modal
+          console.log('User needs to set up profile, showing modal...');
+          showProfileSetup(currentAccount, async (profileData) => {
+            try {
+              const updatedProfile = await updateUserProfile(profileData.walletAddress, profileData.username);
+              
+              // Update auth data with new profile
+              const user = {
+                id: updatedProfile.id,
+                email: updatedProfile.walletAddress,
+                walletAddress: updatedProfile.walletAddress,
+                username: updatedProfile.username,
+                balance: updatedProfile.balance
+              };
+              setAuthData(user);
+              showError(`Welcome, ${updatedProfile.username}!`);
+            } catch (error) {
+              console.error('Error updating profile:', error);
+              throw error; // Re-throw to be caught by profile modal
+            }
+          });
+          
+          // Return the basic user object for immediate UI update
+          const basicUser = {
+            id: profile.id,
+            email: profile.walletAddress,
+            walletAddress: profile.walletAddress,
+            username: null,
+            balance: profile.balance
+          };
+          return basicUser as any;
+          
+        } else {
+          // User already has a profile, use it
+          const user = {
+            id: profile.id,
+            email: profile.walletAddress,
+            walletAddress: profile.walletAddress,
+            username: profile.username,
+            balance: profile.balance
+          };
+          setAuthData(user);
+          showError(`Welcome back, ${profile.username || 'User'}!`);
+          return user as any;
+        }
+        
+      } catch (profileError) {
+        console.error('Error fetching profile:', profileError);
+        // Fall back to basic user object if profile fetch fails
+        const user = {
+          id: currentAccount,
+          email: currentAccount,
+          walletAddress: currentAccount,
+          balance: 0
+        };
+        setAuthData(user);
+        return user as any;
+      }
     }
     
     return null;
@@ -113,9 +194,13 @@ export async function handleConnectWallet(): Promise<User | null> {
     }
     return null;
   } finally {
-    connectWalletBtn.textContent = 'Connect Wallet';
-    connectWalletBtn.disabled = false;
-    connectWalletBtn.classList.remove('loading');
+    // Reset button state
+    const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+    if (connectWalletBtn) {
+      connectWalletBtn.textContent = 'Connect Wallet';
+      connectWalletBtn.disabled = false;
+      connectWalletBtn.classList.remove('loading');
+    }
   }
 }
 
@@ -174,7 +259,7 @@ export function setupWalletEventListeners() {
     showError(`Switched to account: ${shortenAddress(newAccount)}`);
   };
 
-  // Network changed handler  
+  // Network changed handler
   walletConnector.onNetworkChanged = (newChainId: string) => {
     console.log('Network changed to:', newChainId);
     const networkDisplay = document.querySelector<HTMLSpanElement>('#networkDisplay');
@@ -192,6 +277,41 @@ export function setupWalletEventListeners() {
   };
 }
 
+// Add disconnect wallet functionality
+export async function handleDisconnectWallet(): Promise<void> {
+  try {
+    // Disconnect from wallet
+    walletConnector.disconnect();
+    
+    // Clear auth data
+    setAuthData(null);
+    
+    // Clear any stored wallet data
+    (window as any).currentWalletAddress = null;
+    
+    // Reset UI to show connect button
+    const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+    const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
+    const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
+    
+    if (connectWalletBtn && userInfo && testLoginBtn) {
+      connectWalletBtn.style.display = 'block';
+      testLoginBtn.style.display = 'block';
+      userInfo.style.display = 'none';
+      
+      // Reset button state
+      connectWalletBtn.disabled = false;
+      connectWalletBtn.textContent = 'Connect Wallet';
+      connectWalletBtn.classList.remove('loading');
+    }
+    
+    showError('Wallet disconnected successfully');
+  } catch (error) {
+    console.error('Error disconnecting wallet:', error);
+    showError('Error disconnecting wallet');
+  }
+}
+
 // Helper function to get network name
 function getNetworkName(chainId: string): string {
   const networks: Record<string, string> = {
@@ -204,6 +324,66 @@ function getNetworkName(chainId: string): string {
   };
   return networks[chainId] || `Unknown (${chainId})`;
 }
+
+// Debug function to check current wallet and button state
+export function debugWalletState(): void {
+  console.log('=== Wallet Debug State ===');
+  console.log('MetaMask installed:', walletConnector.isMetaMaskInstalled());
+  console.log('Wallet connected:', walletConnector.isConnected());
+  console.log('Current account:', walletConnector.getCurrentAccount());
+  console.log('Current chainId:', walletConnector.getCurrentChainId());
+  
+  const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+  const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
+  
+  console.log('Connect button visible:', connectWalletBtn ? connectWalletBtn.style.display !== 'none' : 'Button not found');
+  console.log('Connect button disabled:', connectWalletBtn?.disabled || false);
+  console.log('Connect button text:', connectWalletBtn?.textContent || 'Button not found');
+  console.log('User info visible:', userInfo ? userInfo.style.display !== 'none' : 'UserInfo not found');
+  
+  // Check for profile modal
+  const profileModal = document.getElementById('profileSetupModal');
+  console.log('Profile modal visible:', profileModal ? profileModal.style.display !== 'none' : 'Modal not found');
+  
+  console.log('=== End Debug State ===');
+}
+
+// Make debug function available globally for testing
+(window as any).debugWalletState = debugWalletState;
+
+// Force reset wallet state (for debugging)
+export function forceResetWalletState(): void {
+  console.log('Force resetting wallet state...');
+  
+  // Disconnect wallet
+  walletConnector.disconnect();
+  
+  // Clear auth data
+  setAuthData(null);
+  
+  // Clear stored data
+  (window as any).currentWalletAddress = null;
+  
+  // Force UI reset
+  const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+  const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
+  const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
+  
+  if (connectWalletBtn && userInfo && testLoginBtn) {
+    connectWalletBtn.style.display = 'block';
+    testLoginBtn.style.display = 'block';
+    userInfo.style.display = 'none';
+    
+    connectWalletBtn.disabled = false;
+    connectWalletBtn.textContent = 'Connect Wallet';
+    connectWalletBtn.classList.remove('loading');
+  }
+  
+  console.log('Wallet state force reset complete');
+}
+
+// Make force reset available globally for debugging
+(window as any).forceResetWalletState = forceResetWalletState;
 
 // Centralized auth state listener
 supabase.auth.onAuthStateChange((event, session) => {

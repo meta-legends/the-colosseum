@@ -1,14 +1,18 @@
 import './style.css'
-import { handleConnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
+import { handleConnectWallet, handleDisconnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
 import { initChat, sendMessageWithRateLimit } from './chat';
 import { initializePlayer } from './video';
 import { type User } from "@supabase/supabase-js";
 import { BettingArenaUI, type Battle } from './ui/BettingArenaUI';
+import { initProfileSetup } from './profile';
 
 console.log('Colosseum frontend script is running.');
 
 // Initialize the application
 async function initializeApp() {
+  // Initialize profile setup modal
+  initProfileSetup();
+  
   // Setup wallet event listeners first
   setupWalletEventListeners();
   
@@ -20,6 +24,14 @@ async function initializeApp() {
   if (connectWalletBtn) {
     connectWalletBtn.addEventListener('click', async () => {
       await handleConnectWallet();
+    });
+  }
+
+  // Set up disconnect wallet button
+  const disconnectWalletBtn = document.querySelector<HTMLButtonElement>('#disconnectWalletBtn');
+  if (disconnectWalletBtn) {
+    disconnectWalletBtn.addEventListener('click', async () => {
+      await handleDisconnectWallet();
     });
   }
 

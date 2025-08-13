@@ -7,6 +7,7 @@ interface ChatMessage {
   createdAt: string;
   user: {
     walletAddress: string;
+    username?: string | null;
   };
 }
 
@@ -45,7 +46,8 @@ async function fetchMessageWithUser(messageId: string) {
         .select(`
             *,
             user:User (
-                walletAddress
+                walletAddress,
+                username
             )
         `)
         .eq('id', messageId)
@@ -63,7 +65,7 @@ async function fetchMessageWithUser(messageId: string) {
             userId: data.userId,
             message: data.message,
             createdAt: data.createdAt,
-            user: data.user as { walletAddress: string }, // Type assertion
+            user: data.user as { walletAddress: string; username?: string | null }, // Type assertion
         };
         addMessageToChat(message);
     }
@@ -94,7 +96,8 @@ async function fetchInitialMessages() {
     .select(`
         *,
         user:User (
-            walletAddress
+            walletAddress,
+            username
         )
     `)
     .order('createdAt', { ascending: false })
@@ -119,7 +122,7 @@ async function fetchInitialMessages() {
             userId: message.userId,
             message: message.message,
             createdAt: message.createdAt,
-            user: message.user as { walletAddress: string },
+            user: message.user as { walletAddress: string; username?: string | null },
         };
         addMessageToChat(chatMessage)
     });
@@ -139,8 +142,8 @@ function addMessageToChat(message: ChatMessage) {
 
   const userElement = document.createElement('span');
   userElement.className = 'chat-message-user';
-  // Use the wallet address from the related user record
-  userElement.textContent = formatUserName(message.user.walletAddress);
+  // Use username if available, otherwise format wallet address
+  userElement.textContent = formatUserName(message.user.walletAddress, message.user.username);
 
   const timeElement = document.createElement('span');
   timeElement.className = 'chat-message-time';
@@ -237,7 +240,10 @@ function addSystemMessage(message: string) {
   scrollToBottom();
 }
 
-function formatUserName(walletAddress: string): string {
+function formatUserName(walletAddress: string, username?: string | null): string {
+  if (username) {
+    return username;
+  }
   if (!walletAddress) return 'Anonymous';
   return `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
 }

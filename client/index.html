@@ -24,6 +24,7 @@
           <div id="walletControls" class="wallet-controls">
             <span id="networkDisplay" class="network-display">Unknown Network</span>
             <button id="switchNetworkBtn" class="network-switch-btn">Switch Network</button>
+            <button id="disconnectWalletBtn" class="disconnect-btn">Disconnect</button>
             <div id="networkOptions" class="network-options" style="display: none;">
               <button data-chain="0x1">Ethereum</button>
               <button data-chain="0x89">Polygon</button>
@@ -87,6 +88,25 @@
         </div>
       </aside>
     </main>
+
+    <!-- Profile Setup Modal -->
+    <div id="profileSetupModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Complete Your Profile</h2>
+        <p>Choose a username to represent you in The Colosseum</p>
+        <form id="profileSetupForm">
+          <div class="form-group">
+            <label for="usernameInput">Username</label>
+            <input type="text" id="usernameInput" placeholder="Enter your username" maxlength="20" autocomplete="off">
+            <div id="usernameValidation" class="validation-message"></div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="saveProfileBtn" class="btn-primary" disabled>Save Profile</button>
+            <button type="button" id="skipProfileBtn" class="btn-secondary">Skip for Now</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

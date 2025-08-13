@@ -98,7 +98,7 @@ interface EthereumProvider {
       // Set up event listeners
       this.setupEventListeners();
 
-      // Integrate with existing auth system
+      // Integrate with SIWE-based auth system
       if (this.account) {
         await this.authenticateWithServer();
       }
@@ -114,37 +114,48 @@ interface EthereumProvider {
     }
   }
 
-  // Authenticate with the existing server system
+  // Authenticate with the server via SIWE (sign-in with wallet)
   private async authenticateWithServer(): Promise<void> {
     if (!this.account) {
       throw new Error('No account connected');
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: this.account }),
+      // 1) Get nonce tied to the address
+      const nonceRes = await fetch(`http://localhost:3001/api/auth/nonce?address=${this.account}`);
+      if (!nonceRes.ok) {
+        throw new Error('Failed to get nonce');
+      }
+      const { nonce, message } = await nonceRes.json();
+
+      // 2) Ask wallet to sign the message
+      const signature: string = await this.provider!.request({
+        method: 'personal_sign',
+        params: [message, this.account]
       });
 
-      if (response.ok) {
-        const { user, session } = await response.json();
-        
-        if (!user || !session) {
-          throw new Error("Login did not return a user and session.");
-        }
-        
-        // Import auth module dynamically to avoid circular dependency
-        const { supabase } = await import('../supabase');
-        const { setAuthData } = await import('../auth');
-        
-        await supabase.auth.setSession(session);
-        setAuthData(user);
-        console.log('Wallet connected and session set:', user.email);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to login to server');
+      // 3) Verify on server and receive Supabase session
+      const verifyRes = await fetch('http://localhost:3001/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: this.account, signature, nonce })
+      });
+
+      if (!verifyRes.ok) {
+        const err = await verifyRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Verification failed');
       }
+
+      const { user, session } = await verifyRes.json();
+      if (!user || !session) {
+        throw new Error('Verification did not return a user and session');
+      }
+
+      const { supabase } = await import('../supabase');
+      const { setAuthData } = await import('../auth');
+      await supabase.auth.setSession(session);
+      setAuthData(user);
+      console.log('Wallet connected via SIWE:', user.email);
     } catch (error) {
       console.error('Server authentication failed:', error);
       throw error;
