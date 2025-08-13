@@ -210,7 +210,7 @@ export function untrackPresence() {
     supabase.removeChannel(presenceChannel);
 }
 
-function addSystemMessage(message: string) {
+export function addSystemMessage(message: string) {
   const chatMessages = document.getElementById('chatMessages');
   if (!chatMessages) return;
 

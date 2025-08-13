@@ -171,7 +171,7 @@ router.post('/login', async (req: Request, res: Response) => {
         }
       });
 
-      // Also create a record in our public 'User' table using the user's auth context
+      // Also create a record in our public User table using the user's auth context
       const { error: userProfileError } = await authed
         .from('User')
         .insert({ id: signUpData.user.id, walletAddress: walletAddress });

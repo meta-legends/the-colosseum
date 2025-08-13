@@ -1,6 +1,6 @@
 import './style.css'
 import { handleConnectWallet, handleDisconnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
-import { initChat, sendMessageWithRateLimit } from './chat';
+import { initChat, sendMessageWithRateLimit, addSystemMessage } from './chat';
 import { initializePlayer } from './video';
 import { type User } from "@supabase/supabase-js";
 import { BettingArenaUI, type Battle } from './ui/BettingArenaUI';
@@ -136,15 +136,32 @@ function sendChatMessage() {
       // Get user data
       import('./auth').then(({ authData }) => {
         if (authData) {
-          // Use authData.id, which is the Supabase user ID
-          sendMessageWithRateLimit(authData.id, message);
-          chatInput.value = '';
-          sendChatBtn.disabled = true;
+          console.log('Sending chat message with authData:', authData);
           
-          // Reset input styling
-          chatInput.style.borderColor = '';
+          // Check if this is a proper database user (not just wallet address)
+          if (typeof authData.id === 'string' && authData.id.length > 42) {
+            // This looks like a proper database ID (not a wallet address)
+            console.log('Using database userId for chat:', authData.id);
+            sendMessageWithRateLimit(authData.id, message);
+            chatInput.value = '';
+            sendChatBtn.disabled = true;
+            chatInput.style.borderColor = '';
+          } else {
+            // This is likely a wallet address, user needs to complete profile setup
+            console.error('User profile not properly set up. ID looks like wallet address:', authData.id);
+            addSystemMessage('Please complete your profile setup before chatting. Click "Connect Wallet" again.');
+            
+            // Re-enable the connect wallet button
+            const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
+            if (connectWalletBtn) {
+              connectWalletBtn.style.display = 'block';
+              connectWalletBtn.disabled = false;
+              connectWalletBtn.textContent = 'Complete Profile Setup';
+            }
+          }
         } else {
           console.error('User not authenticated');
+          addSystemMessage('Please connect your wallet to chat');
         }
       });
     }
