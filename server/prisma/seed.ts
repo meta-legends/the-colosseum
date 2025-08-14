@@ -8,6 +8,7 @@ async function main() {
 
   // Clean up existing data to make the seed idempotent
   console.log('Deleting existing data...');
+  await prisma.chatMessage.deleteMany({}); // Delete chat messages first
   await prisma.bet.deleteMany({});
   await prisma.bettingPool.deleteMany({});
   await prisma.battle.deleteMany({});
@@ -43,7 +44,7 @@ async function main() {
   console.log(`Created character: ${commodus.name}`);
 
   // 3. Create a battle scheduled for 15 minutes in the future
-  const startTime = new Date(Date.now() + 15 * 60 * 1000);
+  const startTime = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago (battle is live)
   const battle = await prisma.battle.create({
     data: {
       title: 'Final Duel',

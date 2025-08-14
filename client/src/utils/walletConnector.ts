@@ -117,45 +117,103 @@ interface EthereumProvider {
   // Authenticate with the server via SIWE (sign-in with wallet)
   private async authenticateWithServer(): Promise<void> {
     if (!this.account) {
-      throw new Error('No account connected');
+      throw new Error('No account to authenticate');
     }
 
     try {
-      // 1) Get nonce tied to the address
+      console.log('=== SIWE AUTHENTICATION START ===');
+      console.log('Account to authenticate:', this.account);
+      
+      // Get nonce from server
       const nonceRes = await fetch(`http://localhost:3001/api/auth/nonce?address=${this.account}`);
       if (!nonceRes.ok) {
-        throw new Error('Failed to get nonce');
+        const err = await nonceRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to get nonce');
       }
+      
       const { nonce, message } = await nonceRes.json();
-
-      // 2) Ask wallet to sign the message
-      const signature: string = await this.provider!.request({
+      console.log('Received nonce:', nonce);
+      console.log('Message to sign:', message);
+      
+      // Request signature from wallet
+      const signature = await this.provider!.request({
         method: 'personal_sign',
         params: [message, this.account]
       });
-
-      // 3) Verify on server and receive Supabase session
+      console.log('Signature received:', signature);
+      
+      // Verify signature with server
       const verifyRes = await fetch('http://localhost:3001/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: this.account, signature, nonce })
       });
 
+      console.log('Verification response status:', verifyRes.status);
+      console.log('Verification response headers:', Object.fromEntries(verifyRes.headers.entries()));
+
       if (!verifyRes.ok) {
         const err = await verifyRes.json().catch(() => ({}));
+        console.error('Verification failed:', err);
         throw new Error(err.error || 'Verification failed');
       }
 
       const { user, session } = await verifyRes.json();
+      console.log('=== SIWE AUTHENTICATION SUCCESS ===');
+      console.log('User object received:', user);
+      console.log('Session received:', session);
+      
       if (!user || !session) {
         throw new Error('Verification did not return a user and session');
       }
 
+      console.log('=== SIWE DEBUG START ===');
+      console.log('Raw user object from server:', JSON.stringify(user, null, 2));
+      console.log('User email field:', user.email);
+      console.log('User walletAddress field:', user.walletAddress);
+      console.log('User id field:', user.id);
+      console.log('Original account:', this.account);
+      console.log('Response verification:', verifyRes.status, verifyRes.statusText);
+      
+      // Extract the clean Ethereum address from the user object
+      // The server returns user.email as "0x...@colosseum.app", but we need just "0x..."
+      let cleanWalletAddress = this.account; // Use the original account as fallback
+      
+      console.log('Starting address extraction...');
+      
+      if (user.email && user.email.includes('@')) {
+        // Extract the wallet address part before the @ symbol
+        cleanWalletAddress = user.email.split('@')[0];
+        console.log('✅ Extracted clean wallet address from email:', cleanWalletAddress);
+      } else if (user.walletAddress && user.walletAddress.includes('@')) {
+        // Try walletAddress field if email doesn't have it
+        cleanWalletAddress = user.walletAddress.split('@')[0];
+        console.log('✅ Extracted clean wallet address from walletAddress field:', cleanWalletAddress);
+      } else if (user.walletAddress && !user.walletAddress.includes('@')) {
+        // Use walletAddress if it's already clean
+        cleanWalletAddress = user.walletAddress;
+        console.log('✅ Using clean walletAddress from user object:', cleanWalletAddress);
+      } else {
+        console.log('⚠️ No @ symbol found in any field, using original account');
+      }
+      
+      console.log('Final clean wallet address:', cleanWalletAddress);
+      
+      // Update the user object with the clean wallet address
+      const cleanUser = {
+        ...user,
+        walletAddress: cleanWalletAddress,
+        email: cleanWalletAddress // Also clean the email field
+      };
+
+      console.log('Final clean user object:', JSON.stringify(cleanUser, null, 2));
+      console.log('=== SIWE DEBUG END ===');
+
       const { supabase } = await import('../supabase');
       const { setAuthData } = await import('../auth');
       await supabase.auth.setSession(session);
-      setAuthData(user);
-      console.log('Wallet connected via SIWE:', user.email);
+      setAuthData(cleanUser);
+      console.log('Wallet connected via SIWE:', cleanUser.walletAddress);
     } catch (error) {
       console.error('Server authentication failed:', error);
       throw error;

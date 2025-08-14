@@ -31,7 +31,7 @@ async function initializeApp() {
       if (connectWalletBtn.textContent === 'Complete Profile Setup') {
         // Import and trigger profile setup
         const { triggerProfileSetup } = await import('./auth');
-        triggerProfileSetup();
+        await triggerProfileSetup();
       } else {
         // Normal wallet connection
         await handleConnectWallet();
@@ -69,10 +69,10 @@ async function initializeApp() {
     });
   }
 
-  // Initialize chat for all users immediately
-  initChat();
+  // Initialize chat for all users immediately (for reading)
+  initChat(); // Chat display should be visible to everyone
   
-  // Initialize chat input functionality
+  // Initialize chat input functionality (only for authenticated users)
   setupChatInput();
   
   // Update viewer count (placeholder)
@@ -108,6 +108,9 @@ function setupChatInput() {
   const chatInput = document.querySelector<HTMLInputElement>('#chatInput');
 
   if (sendChatBtn && chatInput) {
+    // Initially disable chat input for non-authenticated users
+    updateChatInputState(false);
+    
     // Handle send button click
     sendChatBtn.addEventListener('click', () => {
       sendChatMessage();
@@ -135,6 +138,26 @@ function setupChatInput() {
         chatInput.style.borderColor = '';
       }
     });
+  }
+}
+
+// Function to update chat input state based on authentication
+export function updateChatInputState(isAuthenticated: boolean) {
+  const sendChatBtn = document.querySelector<HTMLButtonElement>('#sendChatBtn');
+  const chatInput = document.querySelector<HTMLInputElement>('#chatInput');
+  
+  if (sendChatBtn && chatInput) {
+    if (isAuthenticated) {
+      chatInput.placeholder = 'Type a message...';
+      chatInput.disabled = false;
+      sendChatBtn.disabled = true; // Initially disabled until user types
+      sendChatBtn.textContent = 'Send';
+    } else {
+      chatInput.placeholder = 'Connect wallet to chat...';
+      chatInput.disabled = true;
+      sendChatBtn.disabled = true;
+      sendChatBtn.textContent = 'Connect Wallet';
+    }
   }
 }
 

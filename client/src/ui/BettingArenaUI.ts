@@ -69,6 +69,11 @@ export class BettingArenaUI {
   private async handleAuthChange(user: { id: string } | null) {
     if (user && this.battle) {
       try {
+        // Guard: only fetch bets if user.id looks like a UUID
+        const isUuid = typeof user.id === 'string' && user.id.length === 36 && user.id.includes('-');
+        if (!isUuid) {
+          return;
+        }
         const response = await fetch(`/api/battles/${this.battle.id}/bets?userId=${user.id}`);
         if (response.ok) {
           const bets = await response.json();

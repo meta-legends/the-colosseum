@@ -9,9 +9,51 @@ import { showProfileSetup, updateUserProfile, getUserProfile, type UserProfile }
 // This will hold the authenticated user data globally
 export let authData: User | { id: string; balance: number | string; walletAddress: string; } | null = null;
 
-export const setAuthData = (data: User | { id: string; balance: number | string; walletAddress: string; } | null) => {
-  authData = data;
-  updateUI(authData);
+export const setAuthData = async (data: User | { id: string; balance: number | string; walletAddress: string; } | null) => {
+  // Normalize incoming data to always include a clean walletAddress without any domain suffix
+  let normalized: any = null;
+  if (data) {
+    // If the object already has walletAddress, clean it
+    if ((data as any).walletAddress) {
+      const raw = (data as any).walletAddress as string;
+      const clean = raw.includes('@') ? raw.split('@')[0] : raw;
+      normalized = { ...(data as any), walletAddress: clean, email: clean };
+    } else if ((data as any).email) {
+      const rawEmail = (data as any).email as string;
+      const clean = rawEmail.includes('@') ? rawEmail.split('@')[0] : rawEmail;
+      normalized = { ...(data as any), walletAddress: clean, email: clean };
+    } else {
+      normalized = data;
+    }
+  }
+
+  authData = normalized;
+  
+  // Track presence when user connects, untrack when they disconnect
+  if (normalized && 'walletAddress' in normalized) {
+    try {
+      trackPresence((normalized as any).walletAddress);
+    } catch (e) {
+      console.warn('Presence tracking failed to start:', e);
+    }
+  } else {
+    untrackPresence();
+  }
+  
+  // If username is missing but we have a wallet address, try to fetch profile to hydrate UI
+  if (normalized && (normalized as any).walletAddress && !(normalized as any).username) {
+    try {
+      const { getUserProfile } = await import('./profile');
+      const prof = await getUserProfile((normalized as any).walletAddress);
+      if (prof && prof.username) {
+        authData = { ...(normalized as any), username: prof.username, id: prof.id ?? (normalized as any).id, balance: prof.balance ?? (normalized as any).balance };
+      }
+    } catch (e) {
+      // Ignore; UI will still show shortened address
+    }
+  }
+
+  await updateUI(authData); // Now properly awaited
   eventBus.emit('authChanged', authData); // Emit event
 };
 
@@ -30,7 +72,7 @@ function generateAvatarGradient(address: string): string {
   return `linear-gradient(45deg, hsl(${hue1}, 70%, 60%), hsl(${hue2}, 70%, 60%), hsl(${hue3}, 70%, 60%))`;
 }
 
-function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; username?: string | null; } | null) {
+async function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; username?: string | null; } | null) {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
   const testLoginBtn = document.querySelector<HTMLButtonElement>('#testLoginBtn');
   const userInfo = document.querySelector<HTMLDivElement>('#userInfo');
@@ -39,6 +81,14 @@ function updateUI(user: User | { id: string; balance: number | string; walletAdd
   const networkDisplay = document.querySelector<HTMLSpanElement>('#networkDisplay');
 
   console.log('UpdateUI called with user:', user ? { hasUsername: !!('username' in user ? user.username : null), walletAddress: 'walletAddress' in user ? user.walletAddress : user.email } : null);
+
+  // Update chat input state based on authentication
+  try {
+    const { updateChatInputState } = await import('./main');
+    updateChatInputState(!!user);
+  } catch (error) {
+    console.log('Chat input state update not available yet');
+  }
 
   if (user && connectWalletBtn && userInfo && userAddress && battlePoints && testLoginBtn) {
     // Hide login buttons and show user info
@@ -139,10 +189,12 @@ export async function handleConnectWallet(): Promise<User | null> {
                 username: updatedProfile.username,
                 balance: updatedProfile.balance
               };
-              setAuthData(updatedUser);
               
-              // Refresh the UI to show the new profile
-              updateUI(updatedUser);
+              await setAuthData(updatedUser);
+              console.log('Profile updated and auth data set');
+              
+              // Update UI with new profile data
+              await updateUI(updatedUser);
               
               showError(`Welcome, ${updatedProfile.username}!`);
             } catch (error) {
@@ -162,18 +214,18 @@ export async function handleConnectWallet(): Promise<User | null> {
           return basicUser as any;
           
         } else {
-          // User already has a profile, use it
+          // User already has profile, using existing data
           console.log('User already has profile, using existing data');
-          const user = {
+          const existingUser = {
             id: profile.id,
             email: profile.walletAddress,
             walletAddress: profile.walletAddress,
             username: profile.username,
             balance: profile.balance
           };
-          setAuthData(user);
-          showError(`Welcome back, ${profile.username || 'User'}!`);
-          return user as any;
+          
+          await setAuthData(existingUser);
+          await updateUI(existingUser);
         }
         
       } catch (profileError) {
@@ -188,7 +240,7 @@ export async function handleConnectWallet(): Promise<User | null> {
           walletAddress: currentAccount,
           balance: 0
         };
-        setAuthData(user);
+        await setAuthData(user);
         
         // Show profile setup modal immediately
         console.log('About to call showProfileSetup with wallet address:', currentAccount);
@@ -207,10 +259,10 @@ export async function handleConnectWallet(): Promise<User | null> {
               username: updatedProfile.username,
               balance: updatedProfile.balance
             };
-            setAuthData(updatedUser);
+            await setAuthData(updatedUser);
             
             // Refresh the UI to show the new profile
-            updateUI(updatedUser);
+            await updateUI(updatedUser);
             
             showError(`Welcome, ${updatedProfile.username}!`);
           } catch (error) {
@@ -272,7 +324,7 @@ export async function checkWalletConnection(): Promise<void> {
       walletAddress: account || '',
       balance: 0
     };
-    setAuthData(user);
+    await setAuthData(user);
     return;
   }
 
@@ -280,7 +332,7 @@ export async function checkWalletConnection(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     console.log('Found active Supabase session.');
-    setAuthData(session.user);
+    await setAuthData(session.user);
   } else {
      console.log('No active connection found.');
   }
@@ -289,7 +341,7 @@ export async function checkWalletConnection(): Promise<void> {
 // Setup wallet event listeners
 export function setupWalletEventListeners() {
   // Account changed handler
-  walletConnector.onAccountChanged = (newAccount: string) => {
+  walletConnector.onAccountChanged = async (newAccount: string) => {
     console.log('Account changed to:', newAccount);
     const user = {
       id: newAccount,
@@ -297,7 +349,7 @@ export function setupWalletEventListeners() {
       walletAddress: newAccount,
       balance: 0
     };
-    setAuthData(user);
+    await setAuthData(user);
     showError(`Switched to account: ${shortenAddress(newAccount)}`);
   };
 
@@ -312,9 +364,9 @@ export function setupWalletEventListeners() {
   };
 
   // Disconnection handler
-  walletConnector.onDisconnected = () => {
+  walletConnector.onDisconnected = async () => {
     console.log('Wallet disconnected');
-    setAuthData(null);
+    await setAuthData(null);
     showError('Wallet disconnected');
   };
 }
@@ -326,7 +378,7 @@ export async function handleDisconnectWallet(): Promise<void> {
     walletConnector.disconnect();
     
     // Clear auth data
-    setAuthData(null);
+    await setAuthData(null);
     
     // Clear any stored wallet data
     (window as any).currentWalletAddress = null;
@@ -394,14 +446,14 @@ export function debugWalletState(): void {
 (window as any).debugWalletState = debugWalletState;
 
 // Force reset wallet state (for debugging)
-export function forceResetWalletState(): void {
+export async function forceResetWalletState(): Promise<void> {
   console.log('Force resetting wallet state...');
   
   // Disconnect wallet
   walletConnector.disconnect();
   
   // Clear auth data
-  setAuthData(null);
+  await setAuthData(null);
   
   // Clear stored data
   (window as any).currentWalletAddress = null;
@@ -428,7 +480,7 @@ export function forceResetWalletState(): void {
 (window as any).forceResetWalletState = forceResetWalletState;
 
 // Manual profile setup trigger
-export function triggerProfileSetup(): void {
+export async function triggerProfileSetup(): Promise<void> {
   const currentAccount = walletConnector.getCurrentAccount();
   if (currentAccount) {
     console.log('Manually triggering profile setup for:', currentAccount);
@@ -444,7 +496,7 @@ export function triggerProfileSetup(): void {
           username: updatedProfile.username,
           balance: updatedProfile.balance
         };
-        setAuthData(updatedUser);
+        await setAuthData(updatedUser);
         showError(`Welcome, ${updatedProfile.username}!`);
       } catch (error) {
         console.error('Error updating profile:', error);
@@ -460,13 +512,13 @@ export function triggerProfileSetup(): void {
 (window as any).triggerProfileSetup = triggerProfileSetup;
 
 // Centralized auth state listener
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth state changed:', event);
   if (event === 'SIGNED_OUT') {
-    setAuthData(null);
+    await setAuthData(null);
   } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
     if(session) {
-        setAuthData(session.user);
+        await setAuthData(session.user);
     }
   }
 });
