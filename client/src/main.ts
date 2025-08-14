@@ -152,6 +152,13 @@ export function updateChatInputState(isAuthenticated: boolean) {
       chatInput.disabled = false;
       sendChatBtn.disabled = true; // Initially disabled until user types
       sendChatBtn.textContent = 'Send';
+      
+      // Enable input field and add event listener for typing
+      chatInput.addEventListener('input', () => {
+        if (sendChatBtn) {
+          sendChatBtn.disabled = !chatInput.value.trim();
+        }
+      });
     } else {
       chatInput.placeholder = 'Connect wallet to chat...';
       chatInput.disabled = true;
@@ -231,6 +238,16 @@ if (document.readyState === 'loading') {
 } else {
   initializeApp();
 }
+
+// Also check wallet connection state after a short delay to ensure chat input state is synced
+setTimeout(async () => {
+  try {
+    const { checkWalletConnection } = await import('./auth');
+    await checkWalletConnection();
+  } catch (e) {
+    console.log('Delayed wallet connection check not available yet');
+  }
+}, 1000);
 
 // Network switching functionality
 function setupNetworkSwitching() {

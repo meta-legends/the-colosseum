@@ -54,6 +54,15 @@ export const setAuthData = async (data: User | { id: string; balance: number | s
   }
 
   await updateUI(authData); // Now properly awaited
+  
+  // Ensure chat input state is synchronized with auth state
+  try {
+    const { updateChatInputState } = await import('./main');
+    updateChatInputState(!!authData);
+  } catch (e) {
+    console.warn('Failed to update chat input state:', e);
+  }
+  
   eventBus.emit('authChanged', authData); // Emit event
 };
 
@@ -325,6 +334,14 @@ export async function checkWalletConnection(): Promise<void> {
       balance: 0
     };
     await setAuthData(user);
+    
+    // Ensure chat input state is updated
+    try {
+      const { updateChatInputState } = await import('./main');
+      updateChatInputState(true);
+    } catch (e) {
+      console.warn('Failed to update chat input state on wallet check:', e);
+    }
     return;
   }
 
@@ -333,8 +350,24 @@ export async function checkWalletConnection(): Promise<void> {
   if (session) {
     console.log('Found active Supabase session.');
     await setAuthData(session.user);
+    
+    // Ensure chat input state is updated
+    try {
+      const { updateChatInputState } = await import('./main');
+      updateChatInputState(true);
+    } catch (e) {
+      console.warn('Failed to update chat input state on session check:', e);
+    }
   } else {
      console.log('No active connection found.');
+     
+     // Ensure chat input state is updated for unauthenticated state
+     try {
+       const { updateChatInputState } = await import('./main');
+       updateChatInputState(false);
+     } catch (e) {
+       console.warn('Failed to update chat input state on no session:', e);
+     }
   }
 }
 
