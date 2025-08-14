@@ -10,6 +10,7 @@ import bettingRouter from './api/betting';
 import usersRouter from './api/users'; // Import the new router
 import mvpBettingRouter from './api/mvpBetting'; // Import the MVP router
 import { dbConnection } from './db';
+import { memoryMonitor } from './utils';
 
 const app = express();
 const port = 3001;
@@ -44,7 +45,12 @@ server.listen(port, async () => {
   try {
     // Initialize database connection
     await dbConnection.connect();
+    
+    // Start memory monitoring
+    memoryMonitor.startMonitoring();
+    
     console.log(`🚀 Server is running on http://localhost:${port}`);
+    console.log('🔍 Memory monitoring enabled');
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
@@ -54,6 +60,7 @@ server.listen(port, async () => {
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down gracefully...');
+  memoryMonitor.stopMonitoring();
   await dbConnection.disconnect();
   server.close(() => {
     console.log('✅ Server closed');
@@ -63,6 +70,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+  memoryMonitor.stopMonitoring();
   await dbConnection.disconnect();
   server.close(() => {
     console.log('✅ Server closed');

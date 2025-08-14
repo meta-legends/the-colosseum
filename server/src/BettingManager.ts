@@ -3,6 +3,7 @@ import BigNumber from './utils/bignumber';
 import { MarketMakingEngine } from './MarketMakingEngine';
 import { BOOTSTRAP_LIQUIDITY, SAFETY_BUFFER } from './constants';
 import { prisma } from './db';
+import { bigNumberPool, mapPool } from './utils';
 
 export class BettingManager {
 
@@ -26,25 +27,42 @@ export class BettingManager {
     const requiredLiquidity = netPayout.minus(amount);
 
     let opposingVolume: BigNumber;
-    const totalVolume = Array.from(pools.values()).reduce((sum, vol) => sum.plus(vol), new BigNumber(0));
+    // Use object pooling for totalVolume calculation
+    const totalVolume = bigNumberPool.get(0);
+    try {
+      Array.from(pools.values()).forEach(vol => {
+        totalVolume.plus(vol);
+      });
 
-    // COLD START LOGIC: If the market is empty, use bootstrap liquidity.
-    if (totalVolume.isZero()) {
-      opposingVolume = BOOTSTRAP_LIQUIDITY;
-    } else {
-      // NORMAL LOGIC: Use real liquidity from the opposing pool.
-      if (battle.type === BattleType.TEAM_BATTLE) {
-        const opposingCharacterId = Array.from(pools.keys()).find(id => id !== characterId);
-        opposingVolume = pools.get(opposingCharacterId!) || new BigNumber(0);
-      } else { // BATTLE_ROYALE
-        const currentCharacterVolume = pools.get(characterId) || new BigNumber(0);
-        opposingVolume = totalVolume.minus(currentCharacterVolume);
+      // COLD START LOGIC: If the market is empty, use bootstrap liquidity.
+      if (totalVolume.isZero()) {
+        opposingVolume = BOOTSTRAP_LIQUIDITY;
+      } else {
+        // NORMAL LOGIC: Use real liquidity from the opposing pool.
+        if (battle.type === BattleType.TEAM_BATTLE) {
+          const opposingCharacterId = Array.from(pools.keys()).find(id => id !== characterId);
+          opposingVolume = pools.get(opposingCharacterId!) || bigNumberPool.get(0);
+        } else { // BATTLE_ROYALE
+          const currentCharacterVolume = pools.get(characterId) || bigNumberPool.get(0);
+          opposingVolume = totalVolume.minus(currentCharacterVolume);
+        }
       }
+
+      const availableLiquidity = opposingVolume.times(SAFETY_BUFFER);
+      const result = requiredLiquidity.isLessThanOrEqualTo(availableLiquidity);
+
+      // Return BigNumber instances to pool
+      bigNumberPool.return(totalVolume);
+      if (opposingVolume !== BOOTSTRAP_LIQUIDITY) {
+        bigNumberPool.return(opposingVolume);
+      }
+
+      return result;
+    } catch (error) {
+      // Return BigNumber instances to pool in case of error
+      bigNumberPool.return(totalVolume);
+      throw error;
     }
-
-    const availableLiquidity = opposingVolume.times(SAFETY_BUFFER);
-
-    return requiredLiquidity.isLessThanOrEqualTo(availableLiquidity);
   }
 
   /**
@@ -62,29 +80,55 @@ export class BettingManager {
       throw new Error('Battle not found');
     }
 
-    const pools = new Map<string, BigNumber>();
-    battle.participants.forEach(p => {
-      const pool = battle.bettingPools.find(bp => bp.characterId === p.id);
-      pools.set(p.id, pool ? new BigNumber(pool.totalVolume.toString()) : new BigNumber(0));
-    });
+    // Get Map and BigNumber instances from pools instead of creating new ones
+    const pools = mapPool.get();
+    const bigNumbers: BigNumber[] = [];
+    
+    try {
+      battle.participants.forEach(p => {
+        const pool = battle.bettingPools.find(bp => bp.characterId === p.id);
+        const bigNum = bigNumberPool.get(pool ? pool.totalVolume.toString() : '0');
+        pools.set(p.id, bigNum);
+        bigNumbers.push(bigNum);
+      });
 
-    if (battle.type === 'TEAM_BATTLE') {
-      if (battle.participants.length !== 2) throw new Error("Team battle must have exactly 2 participants");
-      
-      const pool_a = battle.bettingPools.find(p => p.characterId === battle.participants[0].id)?.totalVolume ?? 0;
-      const pool_b = battle.bettingPools.find(p => p.characterId === battle.participants[1].id)?.totalVolume ?? 0;
+          if (battle.type === 'TEAM_BATTLE') {
+        if (battle.participants.length !== 2) throw new Error("Team battle must have exactly 2 participants");
+        
+        const pool_a = battle.bettingPools.find(p => p.characterId === battle.participants[0].id)?.totalVolume ?? 0;
+        const pool_b = battle.bettingPools.find(p => p.characterId === battle.participants[1].id)?.totalVolume ?? 0;
 
-      const { odds_a, odds_b } = MarketMakingEngine.calculateTeamBattleOdds(
-        new BigNumber(pool_a.toString()),
-        new BigNumber(pool_b.toString())
-      );
+        // Get BigNumber instances from pool for calculations
+        const bigNumA = bigNumberPool.get(pool_a.toString());
+        const bigNumB = bigNumberPool.get(pool_b.toString());
+        
+        try {
+          const { odds_a, odds_b } = MarketMakingEngine.calculateTeamBattleOdds(bigNumA, bigNumB);
 
-      const oddsMap = new Map<string, BigNumber>();
-      oddsMap.set(battle.participants[0].id, odds_a);
-      oddsMap.set(battle.participants[1].id, odds_b);
-      return oddsMap;
-    } else {
-      return MarketMakingEngine.calculateBattleRoyaleOdds(pools);
+          // Create result map using pool
+          const oddsMap = mapPool.get();
+          oddsMap.set(battle.participants[0].id, odds_a);
+          oddsMap.set(battle.participants[1].id, odds_b);
+          
+          // Return BigNumbers to pool after calculations
+          bigNumberPool.return(bigNumA);
+          bigNumberPool.return(bigNumB);
+          
+          return oddsMap;
+        } catch (error) {
+          // Return BigNumbers to pool in case of error
+          bigNumberPool.return(bigNumA);
+          bigNumberPool.return(bigNumB);
+          throw error;
+        }
+      } else {
+        const result = MarketMakingEngine.calculateBattleRoyaleOdds(pools);
+        return result;
+      }
+    } finally {
+      // Always return objects to pools for reuse
+      bigNumbers.forEach(bn => bigNumberPool.return(bn));
+      mapPool.return(pools);
     }
   }
 
@@ -132,14 +176,19 @@ export class BettingManager {
       const oddsForCharacter = currentOdds.get(characterId);
       if (!oddsForCharacter) throw new Error("Could not calculate odds for the selected character");
 
-      // 4. Validate the bet
-      const pools = new Map<string, BigNumber>();
-      battle.participants.forEach(p => {
-        const pool = battle.bettingPools.find(bp => bp.characterId === p.id);
-        pools.set(p.id, pool ? new BigNumber(pool.totalVolume.toString()) : new BigNumber(0));
-      });
+      // 4. Validate the bet - Use object pooling
+      const pools = mapPool.get();
+      const bigNumbers: BigNumber[] = [];
+      
+      try {
+        battle.participants.forEach(p => {
+          const pool = battle.bettingPools.find(bp => bp.characterId === p.id);
+          const bigNum = bigNumberPool.get(pool ? pool.totalVolume.toString() : '0');
+          pools.set(p.id, bigNum);
+          bigNumbers.push(bigNum);
+        });
 
-      const isValid = await this.isBetValid(battle, characterId, amount, oddsForCharacter, pools);
+        const isValid = await this.isBetValid(battle, characterId, amount, oddsForCharacter, pools);
       if (!isValid) {
         throw new Error("Bet is not valid due to liquidity constraints");
       }
@@ -171,7 +220,12 @@ export class BettingManager {
         create: { battleId, characterId, totalVolume: amount.toString() },
       });
 
-      return newBet;
+        return newBet;
+      } finally {
+        // Always return objects to pools for reuse
+        bigNumbers.forEach(bn => bigNumberPool.return(bn));
+        mapPool.return(pools);
+      }
     });
   }
 } 
