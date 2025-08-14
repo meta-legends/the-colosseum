@@ -1,8 +1,7 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Rate limiting for profile operations
 const profileCreationAttempts = new Map<string, { count: number; lastAttempt: number }>();

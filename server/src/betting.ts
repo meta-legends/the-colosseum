@@ -1,7 +1,5 @@
 import { Server } from 'socket.io';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './db';
 
 const bettingLocks = new Map<string, boolean>();
 

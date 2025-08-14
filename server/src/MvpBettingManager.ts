@@ -1,8 +1,7 @@
-import { PrismaClient, Bet, BetStatus, BattleStatus } from '@prisma/client';
+import { Bet, BetStatus, BattleStatus } from '@prisma/client';
 import BigNumber from './utils/bignumber';
 import { F_HOUSE, F_PLATFORM_IMMEDIATE } from './constants';
-
-const prisma = new PrismaClient();
+import { prisma } from './db';
 
 /**
  * Manages the logic for the simplified Parimutuel (MVP) betting system.

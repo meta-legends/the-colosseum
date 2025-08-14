@@ -9,6 +9,7 @@ import initializeChat from './chat';
 import bettingRouter from './api/betting';
 import usersRouter from './api/users'; // Import the new router
 import mvpBettingRouter from './api/mvpBetting'; // Import the MVP router
+import { dbConnection } from './db';
 
 const app = express();
 const port = 3001;
@@ -39,6 +40,32 @@ app.get('/', (req: Request, res: Response) => {
 
 initializeChat(io);
 
-server.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+server.listen(port, async () => {
+  try {
+    // Initialize database connection
+    await dbConnection.connect();
+    console.log(`🚀 Server is running on http://localhost:${port}`);
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown handling
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  await dbConnection.disconnect();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', async () => {
+  console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+  await dbConnection.disconnect();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });

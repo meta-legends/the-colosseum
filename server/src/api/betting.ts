@@ -1,10 +1,9 @@
 import express from 'express';
 import { BettingManager } from '../BettingManager';
 import BigNumber from '../utils/bignumber';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // GET /api/battles/current
 router.get('/battles/current', async (req, res) => {

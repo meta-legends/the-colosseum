@@ -1,10 +1,9 @@
 import express from 'express';
 import { MvpBettingManager } from '../MvpBettingManager';
 import BigNumber from '../utils/bignumber';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // GET /api/mvp/battles/:battleId/pools
 router.get('/battles/:battleId/pools', async (req, res) => {

@@ -1,9 +1,8 @@
-import { PrismaClient, Battle, BattleType, Bet } from '@prisma/client';
+import { Battle, BattleType, Bet } from '@prisma/client';
 import BigNumber from './utils/bignumber';
 import { MarketMakingEngine } from './MarketMakingEngine';
 import { BOOTSTRAP_LIQUIDITY, SAFETY_BUFFER } from './constants';
-
-const prisma = new PrismaClient();
+import { prisma } from './db';
 
 export class BettingManager {
 
