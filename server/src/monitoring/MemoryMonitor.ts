@@ -195,3 +195,5 @@ export class MemoryMonitor {
 
 // Export singleton instance
 export const memoryMonitor = MemoryMonitor.getInstance();
+
+

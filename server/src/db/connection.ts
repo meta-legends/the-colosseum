@@ -76,3 +76,4 @@ export const prisma = dbConnection.getClient();
 
 // Export the connection class for testing purposes
 export { DatabaseConnection };
+
