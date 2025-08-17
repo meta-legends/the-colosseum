@@ -1,10 +1,9 @@
-import { ethers } from "ethers";
 import { supabase } from './supabase';
 import { type User } from "@supabase/supabase-js";
 import { trackPresence, untrackPresence } from './chat';
 import { eventBus } from './events';
 import walletConnector from './utils/walletConnector';
-import { showProfileSetup, updateUserProfile, getUserProfile, type UserProfile } from './profile';
+import { showProfileSetup, updateUserProfile, getUserProfile } from './profile';
 
 // This will hold the authenticated user data globally
 export let authData: User | { id: string; balance: number | string; walletAddress: string; } | null = null;
@@ -66,20 +65,9 @@ export const setAuthData = async (data: User | { id: string; balance: number | s
   eventBus.emit('authChanged', authData); // Emit event
 };
 
-const userInfo = document.querySelector<HTMLDivElement>('#userInfo')!;
-const userAddressSpan = document.querySelector<HTMLSpanElement>('#userAddress')!;
 
-function truncateAddress(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
-function generateAvatarGradient(address: string): string {
-  const hash = address.slice(2, 8);
-  const hue1 = parseInt(hash.slice(0, 2), 16) % 360;
-  const hue2 = parseInt(hash.slice(2, 4), 16) % 360;
-  const hue3 = parseInt(hash.slice(4, 6), 16) % 360;
-  return `linear-gradient(45deg, hsl(${hue1}, 70%, 60%), hsl(${hue2}, 70%, 60%), hsl(${hue3}, 70%, 60%))`;
-}
+
 
 async function updateUI(user: User | { id: string; balance: number | string; walletAddress: string; username?: string | null; } | null) {
   const connectWalletBtn = document.querySelector<HTMLButtonElement>('#connectWalletBtn');
