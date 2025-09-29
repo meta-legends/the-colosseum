@@ -276,8 +276,8 @@ function updateOnlineCount(count: number) {
   }
 }
 
-const presenceChannelName = 'online-users';
-let presenceChannel = supabase.channel(presenceChannelName);
+// const presenceChannelName = 'online-users';
+// let presenceChannel = supabase.channel(presenceChannelName);
 
 export function trackPresence(walletAddress: string) {
     console.log('Starting presence tracking for:', walletAddress);

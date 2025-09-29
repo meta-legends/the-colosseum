@@ -6,7 +6,6 @@ import './variables.css'
 import { handleConnectWallet, handleDisconnectWallet, checkWalletConnection, setAuthData, setupWalletEventListeners } from './auth';
 import { initChat, sendMessageWithRateLimit, addSystemMessage } from './chat';
 import { initializePlayer } from './video';
-import { type User } from "@supabase/supabase-js";
 import { BettingArenaUI, type Battle } from './ui/BettingArenaUI';
 import { initProfileSetup } from './profile';
 
