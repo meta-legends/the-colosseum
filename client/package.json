@@ -13,6 +13,7 @@
     "vite": "^7.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
     "bignumber.js": "^9.3.1",
     "ethers": "^6.15.0",
     "socket.io-client": "^4.8.1",
