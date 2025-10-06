@@ -46,7 +46,7 @@ export function initProfileSetup() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
+      const response = await fetch(`${process.env.BACKEND_URL}/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -198,7 +198,7 @@ export function closeProfileSetup() {
 
 // API functions for profile management
 export async function updateUserProfile(walletAddress: string, username: string): Promise<UserProfile> {
-  const response = await fetch('http://localhost:3001/api/users/update-profile', {
+  const response = await fetch('${process.env.BACKEND_URL}/api/users/update-profile', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ export async function updateUserProfile(walletAddress: string, username: string)
 }
 
 export async function getUserProfile(walletAddress: string): Promise<UserProfile> {
-  const response = await fetch(`http://localhost:3001/api/users/profile/${encodeURIComponent(walletAddress)}`);
+  const response = await fetch(`${process.env.BACKEND_URL}/api/users/profile/${encodeURIComponent(walletAddress)}`);
   
   if (!response.ok) {
     const error = await response.json();
@@ -229,7 +229,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
 }
 
 export async function checkUsernameAvailability(username: string): Promise<{ available: boolean; username: string }> {
-  const response = await fetch(`http://localhost:3001/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
+  const response = await fetch(`${process.env.BACKEND_URL}/api/users/check-username/${encodeURIComponent(username.toLowerCase())}`);
   
   if (!response.ok) {
     const error = await response.json();
