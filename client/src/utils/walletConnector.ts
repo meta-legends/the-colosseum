@@ -143,7 +143,7 @@ interface EthereumProvider {
       console.log('Signature received:', signature);
       
       // Verify signature with server
-      const verifyRes = await fetch('${import.meta.env.VITE_BACKEND_URL}/api/auth/verify', {
+      const verifyRes = await fetch(import.meta.env.VITE_BACKEND_URL + '/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: this.account, signature, nonce })

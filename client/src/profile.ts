@@ -198,7 +198,7 @@ export function closeProfileSetup() {
 
 // API functions for profile management
 export async function updateUserProfile(walletAddress: string, username: string): Promise<UserProfile> {
-  const response = await fetch('${import.meta.env.VITE_BACKEND_URL}/api/users/update-profile', {
+  const response = await fetch(import.meta.env.VITE_BACKEND_URL + '/api/users/update-profile', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
