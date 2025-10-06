@@ -16,7 +16,10 @@ const app = express();
 const port = 3001;
 
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"],
+  origin: [
+    "http://localhost:5173",
+    "https://the-colosseum-wine.vercel.app"
+  ],
   methods: ["GET", "POST"]
 }));
 app.use(express.json());
