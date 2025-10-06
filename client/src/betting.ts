@@ -7,7 +7,7 @@ export function initializeBetting(userId: string, battleId: string) {
     socket = io();
   }
 
-  fetch(process.env.BACKEND_URL + '/api/betting/battle/current')
+  fetch(import.meta.env.VITE_BACKEND_URL + '/api/betting/battle/current')
     .then(res => res.json())
     .then(battle => {
       document.getElementById('battleTitle')!.textContent = battle.title;
@@ -50,7 +50,7 @@ export function initializeBetting(userId: string, battleId: string) {
 }
 
 export function placeBet(userId: string, battleId: string, constituent: 'A' | 'B', amount: number) {
-  fetch(process.env.BACKEND_URL + '/api/betting/bet', {
+  fetch(import.meta.env.VITE_BACKEND_URL + '/api/betting/bet', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

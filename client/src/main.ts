@@ -54,7 +54,7 @@ async function initializeApp() {
   if (testLoginBtn) {
     testLoginBtn.addEventListener('click', async () => {
       try {
-        const response = await fetch(process.env.BACKEND_URL + '/api/users/test-user');
+        const response = await fetch(import.meta.env.VITE_BACKEND_URL + '/api/users/test-user');
         if (response.ok) {
           const testUser = await response.json();
           setAuthData(testUser); // Use the new function to set auth state
@@ -85,7 +85,8 @@ async function initializeApp() {
   if (bettingPanel) {
     const bettingArena = new BettingArenaUI('betting-arena-container');
     try {
-      const response = await fetch(process.env.BACKEND_URL + '/api/battles/current');
+      const base = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+      const response = await fetch(base + '/api/battles/current');
       if (response.ok) {
         const battle: Battle = await response.json();
         bettingArena.loadBattle(battle);

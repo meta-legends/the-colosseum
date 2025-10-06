@@ -125,7 +125,7 @@ interface EthereumProvider {
       console.log('Account to authenticate:', this.account);
       
       // Get nonce from server
-      const nonceRes = await fetch(`${process.env.BACKEND_URL}/api/auth/nonce?address=${this.account}`);
+      const nonceRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/nonce?address=${this.account}`);
       if (!nonceRes.ok) {
         const err = await nonceRes.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to get nonce');
@@ -143,7 +143,7 @@ interface EthereumProvider {
       console.log('Signature received:', signature);
       
       // Verify signature with server
-      const verifyRes = await fetch('${process.env.BACKEND_URL}/api/auth/verify', {
+      const verifyRes = await fetch('${import.meta.env.VITE_BACKEND_URL}/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: this.account, signature, nonce })
