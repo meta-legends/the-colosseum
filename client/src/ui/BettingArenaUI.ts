@@ -74,7 +74,7 @@ export class BettingArenaUI {
         if (!isUuid) {
           return;
         }
-        const response = await fetch(`/api/battles/${this.battle.id}/bets?userId=${user.id}`);
+        const response = await fetch(process.env.BACKEND_URL + `/api/battles/${this.battle.id}/bets?userId=${user.id}`);
         if (response.ok) {
           const bets = await response.json();
           this.confirmedBets = bets.map((bet: any) => {
@@ -172,7 +172,7 @@ export class BettingArenaUI {
       return;
     }
 
-    const endpoint = this.battle.bettingType === 'PARIMUTUEL' ? `/api/mvp/battles/${this.battle.id}/bet` : `/api/battles/${this.battle.id}/bet`;
+    const endpoint = this.battle.bettingType === 'PARIMUTUEL' ? process.env.BACKEND_URL + `/api/mvp/battles/${this.battle.id}/bet` : `/api/battles/${this.battle.id}/bet`;
 
     try {
         const response = await fetch(endpoint, {
@@ -217,7 +217,7 @@ export class BettingArenaUI {
             alert(`Bet placed successfully!`);
             
             // Refresh user balance in the header
-            const userResponse = await fetch('/api/users/test-user');
+            const userResponse = await fetch(process.env.BACKEND_URL + '/api/users/test-user');
             if (userResponse.ok) {
               const updatedUser = await userResponse.json();
               const { setAuthData } = await import('../auth');
@@ -269,7 +269,7 @@ export class BettingArenaUI {
 
     if (this.battle.bettingType === 'PARIMUTUEL') {
         try {
-            const response = await fetch(`/api/mvp/battles/${this.battle.id}/pools`);
+            const response = await fetch(process.env.BACKEND_URL + `/api/mvp/battles/${this.battle.id}/pools`);
             if (!response.ok) throw new Error('Failed to fetch pools');
             const poolsData = await response.json();
             
@@ -294,7 +294,7 @@ export class BettingArenaUI {
     
     // AMM Logic
     try {
-      const response = await fetch(`/api/battles/${this.battle.id}/odds`);
+      const response = await fetch(process.env.BACKEND_URL + `/api/battles/${this.battle.id}/odds`);
       if (!response.ok) throw new Error('Failed to fetch odds');
       const oddsData = await response.json();
       
